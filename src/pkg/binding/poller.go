@@ -26,6 +26,7 @@ type Binding struct {
 	AppID    string   `json:"app_id"`
 	Drains   []string `json:"drains"`
 	Hostname string   `json:"hostname"`
+	Credentials []string   `json:"credentials"`
 }
 
 type Setter interface {
@@ -95,6 +96,7 @@ func (p *Poller) toBindings(aResp apiResponse) []Binding {
 			AppID:    k,
 			Drains:   v.Drains,
 			Hostname: v.Hostname,
+			Credentials: v.Credentials,
 		})
 	}
 	return bindings
@@ -104,6 +106,7 @@ type apiResponse struct {
 	Results map[string]struct {
 		Drains   []string
 		Hostname string
+		Credentials []string
 	}
 	NextID int `json:"next_id"`
 }
