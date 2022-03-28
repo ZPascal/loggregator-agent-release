@@ -26,7 +26,12 @@ type Binding struct {
 	AppID    string   `json:"app_id"`
 	Drains   []string `json:"drains"`
 	Hostname string   `json:"hostname"`
-	Credentials []string   `json:"credentials"`
+	Credentials []Credential  `json:"credentials"`
+}
+
+type Credential struct {
+    Key string `json:"key"`
+    Cert string `json:"cert"`
 }
 
 type Setter interface {
@@ -106,7 +111,7 @@ type apiResponse struct {
 	Results map[string]struct {
 		Drains   []string
 		Hostname string
-		Credentials []string
+		Credentials []Credential
 	}
 	NextID int `json:"next_id"`
 }
