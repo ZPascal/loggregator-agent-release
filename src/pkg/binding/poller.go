@@ -30,6 +30,7 @@ type Binding struct {
 }
 
 type Credential struct {
+	Url string `json:"drain"`
     Key string `json:"key"`
     Cert string `json:"cert"`
 }
