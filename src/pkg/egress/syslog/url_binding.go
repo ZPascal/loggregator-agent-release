@@ -15,6 +15,8 @@ type URLBinding struct {
 	OmitMetadata bool
 	InternalTls  bool
 	URL          *url.URL
+	Cert         string
+	Key          string
 }
 
 // Scheme is a convenience wrapper around the *url.URL Scheme field
@@ -35,6 +37,8 @@ func buildBinding(c context.Context, b Binding) (*URLBinding, error) {
 		URL:          url,
 		Hostname:     b.Hostname,
 		Context:      c,
+		Cert:         b.Cert,
+		Key:          b.Key,
 	}
 
 	return u, nil

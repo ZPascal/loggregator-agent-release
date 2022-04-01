@@ -20,6 +20,8 @@ type Binding struct {
 	Type         BindingType `json:"type,	omitempty"`
 	OmitMetadata bool
 	InternalTls  bool
+	Cert         string      `json:"cert,   omitempty"`
+	Key          string      `json:"key     omitempty"`
 }
 
 // LogClient is used to emit logs.

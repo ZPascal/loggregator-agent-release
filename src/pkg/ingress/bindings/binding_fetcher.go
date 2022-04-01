@@ -3,7 +3,6 @@ package bindings
 import (
 	"math"
 	"net/url"
-	"sort"
 	"time"
 
 	metrics "code.cloudfoundry.org/go-metric-registry"
@@ -80,15 +79,14 @@ func (f *BindingFetcher) DrainLimit() int {
 func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int) []syslog.Binding {
 	var bindings []syslog.Binding
 	for _, b := range bs {
-		drains := b.Drains
-		sort.Strings(drains)
+		drains := b.Credentials
 
 		if perAppLimit < len(drains) {
 			drains = drains[:perAppLimit]
 		}
 
-		for _, d := range drains {
-			u, err := url.Parse(d)
+		for _, drain := range drains {
+			u, err := url.Parse(drain.Url)
 			if err != nil {
 				continue
 			}
@@ -110,6 +108,8 @@ func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int)
 				Hostname: b.Hostname,
 				Drain:    u.String(),
 				Type:     t,
+				Cert: drain.Cert,
+				Key: drain.Key,
 			}
 			bindings = append(bindings, binding)
 		}
