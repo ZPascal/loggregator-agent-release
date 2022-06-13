@@ -153,7 +153,7 @@ func newFakeAPIClient() *fakeAPIClient {
 	}
 }
 
-func (c *fakeAPIClient) Get(nextID int) (*http.Response, error) {
+func (c *fakeAPIClient) GetBindings(nextID int) (*http.Response, error) {
 	atomic.AddInt64(&c.numRequests, 1)
 
 	var binding response

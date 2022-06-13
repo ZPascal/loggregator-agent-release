@@ -20,7 +20,7 @@ type Poller struct {
 }
 
 type client interface {
-	Get(int) (*http.Response, error)
+	GetBindings(int) (*http.Response, error)
 }
 
 type Binding struct {
@@ -64,7 +64,7 @@ func (p *Poller) poll() {
 	nextID := 0
 	var bindings []Binding
 	for {
-		resp, err := p.apiClient.Get(nextID)
+		resp, err := p.apiClient.GetBindings(nextID)
 		if err != nil {
 			p.bindingRefreshErrorCounter.Add(1)
 			p.logger.Printf("failed to get id %d from CUPS Provider: %s", nextID, err)

@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	pathTemplate = "%s/internal/v4/syslog_drain_urls?batch_size=%d&next_id=%d"
+	bindingsPathTemplate    = "%s/internal/v4/syslog_drain_urls?batch_size=%d&next_id=%d"
+	credentialsPathTemplate = "%s/internal/v4/get_client_certs?updated_at=%s"
 )
 
 type Client struct {
@@ -15,6 +16,10 @@ type Client struct {
 	BatchSize int
 }
 
-func (w Client) Get(nextID int) (*http.Response, error) {
-	return w.Client.Get(fmt.Sprintf(pathTemplate, w.Addr, w.BatchSize, nextID))
+func (w Client) GetBindings(nextID int) (*http.Response, error) {
+	return w.Client.Get(fmt.Sprintf(bindingsPathTemplate, w.Addr, w.BatchSize, nextID))
+}
+
+func (w Client) GetCredentials(updatedAt string) (*http.Response, error) {
+	return w.Client.Get(fmt.Sprintf(credentialsPathTemplate, w.Addr, updatedAt))
 }
