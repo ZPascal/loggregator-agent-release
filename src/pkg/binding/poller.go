@@ -13,6 +13,7 @@ type Poller struct {
 	apiClient       client
 	pollingInterval time.Duration
 	store           Setter
+	dataSince       time.Time
 
 	logger                     *log.Logger
 	bindingRefreshErrorCounter metrics.Counter
@@ -21,6 +22,7 @@ type Poller struct {
 
 type client interface {
 	GetBindings(int) (*http.Response, error)
+	GetCredentials(string) (*http.Response, error)
 }
 
 type Binding struct {
@@ -33,7 +35,7 @@ type Setter interface {
 	Set([]Binding)
 }
 
-func NewPoller(ac client, pi time.Duration, s Setter, m Metrics, logger *log.Logger) *Poller {
+func NewPoller(ac client, pi time.Duration, s Setter, m Metrics, logger *log.Logger, ds time.Time) *Poller {
 	p := &Poller{
 		apiClient:       ac,
 		pollingInterval: pi,
@@ -47,20 +49,26 @@ func NewPoller(ac client, pi time.Duration, s Setter, m Metrics, logger *log.Log
 			"last_binding_refresh_count",
 			"Current number of bindings received from binding provider during last refresh.",
 		),
+		dataSince: ds,
 	}
-	p.poll()
+	p.pollBindings()
 	return p
 }
 
 func (p *Poller) Poll() {
 	t := time.NewTicker(p.pollingInterval)
+	// NOTE(panagiotis.xynos): Fetch a year old credentials at first (should be configurable)
+	lastTime := p.dataSince.UTC()
 
 	for range t.C {
-		p.poll()
+		p.pollBindings()
+		beforeCredentialPoll := time.Now().UTC()
+		p.pollCredentials(lastTime)
+		lastTime = beforeCredentialPoll
 	}
 }
 
-func (p *Poller) poll() {
+func (p *Poller) pollBindings() {
 	nextID := 0
 	var bindings []Binding
 	for {
@@ -87,6 +95,9 @@ func (p *Poller) poll() {
 
 	p.lastBindingCount.Set(float64(len(bindings)))
 	p.store.Set(bindings)
+}
+
+func (p *Poller) pollCredentials(since time.Time) {
 }
 
 func (p *Poller) toBindings(aResp apiResponse) []Binding {

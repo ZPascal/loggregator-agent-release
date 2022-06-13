@@ -21,6 +21,7 @@ type Config struct {
 	APIBatchSize       int           `env:"API_BATCH_SIZE, report"`
 	CipherSuites       []string      `env:"CIPHER_SUITES, report"`
 	AggregateDrains    []string      `env:"AGGREGATE_DRAINS, report"`
+	YearsBackData      time.Duration `env:"YEARS_BACK_DATA, report"`
 
 	CacheCAFile     string `env:"CACHE_CA_FILE_PATH,     required, report"`
 	CacheCertFile   string `env:"CACHE_CERT_FILE_PATH,   required, report"`
@@ -35,9 +36,12 @@ type Config struct {
 // LoadConfig will load the configuration for the syslog binding cache from the
 // environment. If loading the config fails for any reason this function will
 // panic.
+// Note(panagiotis.xynos): YearsBackData by default will call the credentials API
+// endpoint for a years old worth of data.
 func LoadConfig() Config {
 	cfg := Config{
 		APIPollingInterval: 15 * time.Second,
+		YearsBackData:      time.Hour * 24 * 356,
 	}
 	if err := envstruct.Load(&cfg); err != nil {
 		log.Panicf("Failed to load config from environment: %s", err)

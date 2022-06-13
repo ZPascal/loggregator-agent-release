@@ -8,6 +8,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"sync"
+	"time"
 
 	metrics "code.cloudfoundry.org/go-metric-registry"
 	"code.cloudfoundry.org/tlsconfig"
@@ -50,7 +51,8 @@ func (sbc *SyslogBindingCache) Run() {
 	}
 	store := binding.NewStore(sbc.metrics)
 	aggregateStore := binding.AggregateStore{AggregateDrains: sbc.config.AggregateDrains}
-	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log)
+	dataSince := time.Now().UTC().Add(-sbc.config.YearsBackData)
+	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log, dataSince)
 
 	go poller.Poll()
 
