@@ -47,6 +47,16 @@ var _ = Describe("SyslogBindingCache", func() {
 				Drains:   []string{"syslog://drain-c", "syslog://drain-d"},
 				Hostname: "org.space.app-name-2",
 			},
+			// Trying to check if there are any issues consuming an other schema
+			// from CAPI
+			// "app-id-3": appBindings{
+			// 	Drains:   []string{"syslog://drain-a"},
+			// 	Hostname: "org.space.app-name",
+			// 	Credentials: appBindingsCredentials{
+			// 		Cert:       "",
+			// 		PrivateKey: "",
+			// 	},
+			// },
 		}
 
 		capi = &fakeCC{
@@ -192,14 +202,26 @@ type results map[string]appBindings
 type appBindings struct {
 	Drains   []string `json:"drains"`
 	Hostname string   `json:"hostname"`
+	// Credentials appBindingsCredentials `json:"credentials"`
+}
+
+type certificate struct {
+	AppIds      []string               `json:"app_ids"`
+	Credentials appBindingsCredentials `json:"credentials"`
+}
+type appBindingsCredentials struct {
+	Cert       string `json:"cert"`
+	PrivateKey string `json:"private-key"`
 }
 
 type fakeCC struct {
 	*httptest.Server
-	count           int
-	called          int64
-	withEmptyResult bool
-	results         results
+	countSyslogDrainUrls  int
+	calledSyslogDrainUrls int64
+	countGetClientCerts   int
+	calledGetClientCerts  int64
+	withEmptyResult       bool
+	results               results
 }
 
 func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {
@@ -215,17 +237,17 @@ func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {
 
 	Expect(err).ToNot(HaveOccurred())
 
-	f.Server = httptest.NewUnstartedServer(f)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/internal/v4/syslog_drain_urls", f.serveSyslogDrainUrls)
+	mux.HandleFunc("/internal/v4/get_client_certs", f.serveGetClientCerts)
+
+	f.Server = httptest.NewUnstartedServer(mux)
 	f.Server.TLS = tlsConfig
 	f.Server.StartTLS()
 }
 
-func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	atomic.AddInt64(&f.called, 1)
-	if r.URL.Path != "/internal/v4/syslog_drain_urls" {
-		w.WriteHeader(500)
-		return
-	}
+func (f *fakeCC) serveSyslogDrainUrls(w http.ResponseWriter, r *http.Request) {
+	atomic.AddInt64(&f.calledSyslogDrainUrls, 1)
 
 	if r.URL.Query().Get("batch_size") != "1000" {
 		w.WriteHeader(500)
@@ -233,6 +255,12 @@ func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f.serveWithResults(w, r)
+}
+
+func (f *fakeCC) serveGetClientCerts(w http.ResponseWriter, r *http.Request) {
+	atomic.AddInt64(&f.calledGetClientCerts, 1)
+
+	f.serveWithCredentials(w, r)
 }
 
 func (f *fakeCC) serveWithResults(w http.ResponseWriter, r *http.Request) {
@@ -246,18 +274,33 @@ func (f *fakeCC) serveWithResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if f.count > 0 {
+	if f.countSyslogDrainUrls > 0 {
 		resultData = []byte(`{"results": {}}`)
 	}
 
 	w.Write(resultData)
 	if f.withEmptyResult {
-		f.count++
+		f.countSyslogDrainUrls++
 	}
 }
 
+func (f *fakeCC) serveWithCredentials(w http.ResponseWriter, r *http.Request) {
+	emptyCerts, err := json.Marshal(struct {
+		UpdatedAt    string        `json:"updated_at"`
+		Certificates []certificate `json:"certificates"`
+	}{
+		UpdatedAt:    time.Now().AddDate(0, 0, -1).Format(time.RFC3339),
+		Certificates: []certificate{},
+	})
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+	w.Write(emptyCerts)
+}
+
 func (f *fakeCC) numRequests() int64 {
-	return atomic.LoadInt64(&f.called)
+	return atomic.LoadInt64(&f.calledSyslogDrainUrls)
 }
 
 func findBinding(bindings []binding.Binding, appID string) binding.Binding {
