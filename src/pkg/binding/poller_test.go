@@ -24,6 +24,7 @@ var _ = Describe("Poller", func() {
 		store     *fakeStore
 		metrics   *metricsHelpers.SpyMetricsRegistry
 		logger    = log.New(GinkgoWriter, "", 0)
+		dataSince = time.Now().UTC().AddDate(-1, 0, 0)
 	)
 
 	BeforeEach(func() {
@@ -33,7 +34,7 @@ var _ = Describe("Poller", func() {
 	})
 
 	It("polls for bindings on an interval", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, dataSince)
 		go p.Poll()
 
 		Eventually(apiClient.called).Should(BeNumerically(">=", 2))
@@ -52,7 +53,7 @@ var _ = Describe("Poller", func() {
 			},
 		}
 
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, dataSince)
 		go p.Poll()
 
 		var expected []binding.Binding
@@ -90,7 +91,7 @@ var _ = Describe("Poller", func() {
 			},
 		}
 
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, dataSince)
 		go p.Poll()
 
 		var expected []binding.Binding
@@ -112,7 +113,7 @@ var _ = Describe("Poller", func() {
 	})
 
 	It("tracks the number of API errors", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, dataSince)
 		go p.Poll()
 
 		apiClient.errors <- errors.New("expected")
@@ -132,7 +133,7 @@ var _ = Describe("Poller", func() {
 				"app-id-2": {},
 			},
 		}
-		binding.NewPoller(apiClient, time.Hour, store, metrics, logger)
+		binding.NewPoller(apiClient, time.Hour, store, metrics, logger, dataSince)
 
 		Expect(metrics.GetMetric("last_binding_refresh_count", nil).Value()).
 			To(BeNumerically("==", 2))
@@ -169,6 +170,34 @@ func (c *fakeAPIClient) GetBindings(nextID int) (*http.Response, error) {
 	Expect(err).ToNot(HaveOccurred())
 	resp := &http.Response{
 		Body: io.NopCloser(bytes.NewReader(b)),
+	}
+
+	return resp, nil
+}
+
+type certificate struct {
+	AppIds      []string               `json:"app_ids"`
+	Credentials appBindingsCredentials `json:"credentials"`
+}
+type appBindingsCredentials struct {
+	Cert       string `json:"cert"`
+	PrivateKey string `json:"private-key"`
+}
+
+func (c *fakeAPIClient) GetCredentials(updatedAt string) (*http.Response, error) {
+	emptyCerts, err := json.Marshal(struct {
+		UpdatedAt    string        `json:"updated_at"`
+		Certificates []certificate `json:"certificates"`
+	}{
+		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
+		Certificates: []certificate{},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader(emptyCerts)),
 	}
 
 	return resp, nil

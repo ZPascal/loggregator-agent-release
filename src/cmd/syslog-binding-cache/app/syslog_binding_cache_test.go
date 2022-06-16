@@ -59,8 +59,22 @@ var _ = Describe("SyslogBindingCache", func() {
 			// },
 		}
 
+		c := credentialResults{
+			UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+			Certificates: []binding.Certificate{
+				{
+					AppIds: []string{"app-id-1"},
+					Credentials: binding.AppBindingsCredentials{
+						Cert:       "a Cert",
+						PrivateKey: "a PrivateKey",
+					},
+				},
+			},
+		}
+
 		capi = &fakeCC{
-			results: r,
+			results:           r,
+			credentialResults: c,
 		}
 		capi.startTLS(capiTestCerts)
 
@@ -157,6 +171,10 @@ var _ = Describe("SyslogBindingCache", func() {
 		b := findBinding(results, "app-id-1")
 		Expect(b.Drains).To(ConsistOf("syslog://drain-a", "syslog://drain-b"))
 		Expect(b.Hostname).To(Equal("org.space.app-name"))
+		Expect(b.Credentials).To(Equal(binding.AppBindingsCredentials{
+			Cert:       "a Cert",
+			PrivateKey: "a PrivateKey",
+		}))
 
 		b = findBinding(results, "app-id-2")
 		Expect(b.Drains).To(ConsistOf("syslog://drain-c", "syslog://drain-d"))
@@ -199,19 +217,15 @@ var _ = Describe("SyslogBindingCache", func() {
 
 type results map[string]appBindings
 
-type appBindings struct {
-	Drains   []string `json:"drains"`
-	Hostname string   `json:"hostname"`
-	// Credentials appBindingsCredentials `json:"credentials"`
+type credentialResults struct {
+	UpdatedAt    string                `json:"updated_at"`
+	Certificates []binding.Certificate `json:"certificates"`
 }
 
-type certificate struct {
-	AppIds      []string               `json:"app_ids"`
-	Credentials appBindingsCredentials `json:"credentials"`
-}
-type appBindingsCredentials struct {
-	Cert       string `json:"cert"`
-	PrivateKey string `json:"private-key"`
+type appBindings struct {
+	Drains      []string                       `json:"drains"`
+	Hostname    string                         `json:"hostname"`
+	Credentials binding.AppBindingsCredentials `json:"credentials"`
 }
 
 type fakeCC struct {
@@ -222,6 +236,7 @@ type fakeCC struct {
 	calledGetClientCerts  int64
 	withEmptyResult       bool
 	results               results
+	credentialResults     credentialResults
 }
 
 func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {
@@ -285,18 +300,13 @@ func (f *fakeCC) serveWithResults(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakeCC) serveWithCredentials(w http.ResponseWriter, r *http.Request) {
-	emptyCerts, err := json.Marshal(struct {
-		UpdatedAt    string        `json:"updated_at"`
-		Certificates []certificate `json:"certificates"`
-	}{
-		UpdatedAt:    time.Now().AddDate(0, 0, -1).Format(time.RFC3339),
-		Certificates: []certificate{},
-	})
+	td, err := json.Marshal(f.credentialResults)
 	if err != nil {
 		w.WriteHeader(500)
 		return
 	}
-	w.Write(emptyCerts)
+	w.Write(td)
+	f.countGetClientCerts++
 }
 
 func (f *fakeCC) numRequests() int64 {

@@ -15,6 +15,7 @@ type Poller struct {
 	store           Setter
 	dataSince       time.Time
 
+	responses                  map[string]Binding
 	logger                     *log.Logger
 	bindingRefreshErrorCounter metrics.Counter
 	lastBindingCount           metrics.Gauge
@@ -25,10 +26,21 @@ type client interface {
 	GetCredentials(string) (*http.Response, error)
 }
 
+type AppBindingsCredentials struct {
+	Cert       string `json:"cert"`
+	PrivateKey string `json:"private-key"`
+}
+
 type Binding struct {
-	AppID    string   `json:"app_id"`
-	Drains   []string `json:"drains"`
-	Hostname string   `json:"hostname"`
+	AppID       string                 `json:"app_id"`
+	Drains      []string               `json:"drains"`
+	Hostname    string                 `json:"hostname"`
+	Credentials AppBindingsCredentials `json:"credentials"`
+}
+
+type Certificate struct {
+	AppIds      []string               `json:"app_ids"`
+	Credentials AppBindingsCredentials `json:"credentials"`
 }
 
 type Setter interface {
@@ -61,55 +73,81 @@ func (p *Poller) Poll() {
 	lastTime := p.dataSince.UTC()
 
 	for range t.C {
-		p.pollBindings()
+		err := p.pollBindings()
+		if err != nil {
+			continue
+		}
 		beforeCredentialPoll := time.Now().UTC()
 		p.pollCredentials(lastTime)
 		lastTime = beforeCredentialPoll
+
+		var bindings []Binding
+		for _, v := range p.responses {
+			bindings = append(bindings, v)
+		}
+		p.lastBindingCount.Set(float64(len(bindings)))
+		p.store.Set(bindings)
 	}
 }
 
-func (p *Poller) pollBindings() {
+func (p *Poller) pollBindings() error {
 	nextID := 0
-	var bindings []Binding
+	summaryOfResponces := make(map[string]Binding)
 	for {
 		resp, err := p.apiClient.GetBindings(nextID)
 		if err != nil {
 			p.bindingRefreshErrorCounter.Add(1)
 			p.logger.Printf("failed to get id %d from CUPS Provider: %s", nextID, err)
-			return
+			return err
 		}
 		var aResp apiResponse
 		err = json.NewDecoder(resp.Body).Decode(&aResp)
 		if err != nil {
 			p.logger.Printf("failed to decode JSON: %s", err)
-			return
+			return err
 		}
 
-		bindings = append(bindings, p.toBindings(aResp)...)
+		for k, v := range aResp.Results {
+			summaryOfResponces[k] = Binding{
+				AppID:       k,
+				Drains:      v.Drains,
+				Hostname:    v.Hostname,
+				Credentials: AppBindingsCredentials{},
+			}
+		}
+
 		nextID = aResp.NextID
 
 		if nextID == 0 {
 			break
 		}
 	}
-
-	p.lastBindingCount.Set(float64(len(bindings)))
-	p.store.Set(bindings)
+	p.responses = summaryOfResponces
+	return nil
 }
 
 func (p *Poller) pollCredentials(since time.Time) {
-}
-
-func (p *Poller) toBindings(aResp apiResponse) []Binding {
-	var bindings []Binding
-	for k, v := range aResp.Results {
-		bindings = append(bindings, Binding{
-			AppID:    k,
-			Drains:   v.Drains,
-			Hostname: v.Hostname,
-		})
+	resp, err := p.apiClient.GetCredentials(since.Format(time.RFC3339))
+	if err != nil {
+		p.bindingRefreshErrorCounter.Add(1)
+		p.logger.Printf("failed to get syslog credentials from CUPS Provider: %s", err)
+		return
 	}
-	return bindings
+	var aResp credentialsApiResponse
+	err = json.NewDecoder(resp.Body).Decode(&aResp)
+	if err != nil {
+		p.logger.Printf("failed to decode JSON: %s", err)
+		return
+	}
+
+	for _, v := range aResp.Certificates {
+		for _, a := range v.AppIds {
+			if binding, ok := p.responses[a]; ok {
+				binding.Credentials = v.Credentials
+				p.responses[a] = binding
+			}
+		}
+	}
 }
 
 type apiResponse struct {
@@ -118,4 +156,9 @@ type apiResponse struct {
 		Hostname string
 	}
 	NextID int `json:"next_id"`
+}
+
+type credentialsApiResponse struct {
+	UpdatedAt    string        `json:"updated_at"`
+	Certificates []Certificate `json:"certificates"`
 }
