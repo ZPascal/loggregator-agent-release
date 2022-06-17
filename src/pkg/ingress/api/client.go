@@ -3,10 +3,12 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"time"
 )
 
 var (
-	pathTemplate = "%s/internal/v4/syslog_drain_urls?batch_size=%d&next_id=%d"
+	sDUrlsPathTemplate  = "%s/internal/v4/syslog_drain_urls?batch_size=%d&next_id=%d"
+	sDCertspathTemplate = "%s/internal/v4/syslog_drain_certs?updated_since=%s"
 )
 
 type Client struct {
@@ -15,6 +17,10 @@ type Client struct {
 	BatchSize int
 }
 
-func (w Client) Get(nextID int) (*http.Response, error) {
-	return w.Client.Get(fmt.Sprintf(pathTemplate, w.Addr, w.BatchSize, nextID))
+func (w Client) GetUrls(nextID int) (*http.Response, error) {
+	return w.Client.Get(fmt.Sprintf(sDUrlsPathTemplate, w.Addr, w.BatchSize, nextID))
+}
+
+func (w Client) GetCerts(updatedSince time.Time) (*http.Response, error) {
+	return w.Client.Get(fmt.Sprintf(sDCertspathTemplate, w.Addr, updatedSince.Format(time.RFC3339)))
 }

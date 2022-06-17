@@ -44,10 +44,16 @@ type AggregateStore struct {
 }
 
 func (store *AggregateStore) Get() []Binding {
+	var aggregateDrains []Drain
+	for _, d := range store.AggregateDrains {
+		aggregateDrains = append(aggregateDrains, Drain{
+			Url: d,
+		})
+	}
 	return []Binding{
 		{
 			AppID:  "",
-			Drains: store.AggregateDrains,
+			Drains: aggregateDrains,
 		},
 	}
 }

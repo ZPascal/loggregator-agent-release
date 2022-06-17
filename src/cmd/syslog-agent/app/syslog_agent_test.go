@@ -60,23 +60,29 @@ var _ = Describe("SyslogAgent", func() {
 					{
 						AppID:    "some-id",
 						Hostname: "org.space.name",
-						Drains: []string{
-							syslogHTTPS.server.URL,
+						Drains: []binding.Drain{
+							{
+								Url: syslogHTTPS.server.URL,
+							},
 						},
 					},
 					{
 						AppID:    "some-id-tls",
 						Hostname: "org.space.name",
-						Drains: []string{
-							fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
+						Drains: []binding.Drain{
+							{
+								Url: fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
+							},
 						},
 					},
 				},
 				aggregate: []binding.Binding{
 					{
 						AppID: "",
-						Drains: []string{
-							aggregateAddr,
+						Drains: []binding.Drain{
+							{
+								Url: aggregateAddr,
+							},
 						},
 					},
 				},
@@ -312,22 +318,28 @@ var _ = Describe("SyslogAgent", func() {
 				{
 					AppID:    "some-id",
 					Hostname: "org.space.name",
-					Drains: []string{
-						syslogHTTPS.server.URL + "?disable-metadata=true",
+					Drains: []binding.Drain{
+						{
+							Url: syslogHTTPS.server.URL + "?disable-metadata=true",
+						},
 					},
 				},
 				{
 					AppID:    "some-id-tls",
 					Hostname: "org.space.name",
-					Drains: []string{
-						fmt.Sprintf("syslog-tls://localhost:%s?disable-metadata=true", syslogTLS.port()),
+					Drains: []binding.Drain{
+						{
+							Url: fmt.Sprintf("syslog-tls://localhost:%s?disable-metadata=true", syslogTLS.port()),
+						},
 					},
 				},
 			}
 			bindingCache.aggregate = []binding.Binding{
 				{
-					Drains: []string{
-						aggregateAddr + "?disable-metadata=true",
+					Drains: []binding.Drain{
+						{
+							Url: aggregateAddr + "?disable-metadata=true",
+						},
 					},
 				},
 			}
@@ -350,22 +362,28 @@ var _ = Describe("SyslogAgent", func() {
 				{
 					AppID:    "some-id",
 					Hostname: "org.space.name",
-					Drains: []string{
-						syslogHTTPS.server.URL,
+					Drains: []binding.Drain{
+						{
+							Url: syslogHTTPS.server.URL,
+						},
 					},
 				},
 				{
 					AppID:    "some-id-tls",
 					Hostname: "org.space.name",
-					Drains: []string{
-						fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
+					Drains: []binding.Drain{
+						{
+							Url: fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
+						},
 					},
 				},
 			}
 			bindingCache.aggregate = []binding.Binding{
 				{
-					Drains: []string{
-						aggregateAddr,
+					Drains: []binding.Drain{
+						{
+							Url: aggregateAddr,
+						},
 					},
 				},
 			}

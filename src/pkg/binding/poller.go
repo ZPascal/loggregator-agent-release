@@ -20,13 +20,24 @@ type Poller struct {
 }
 
 type client interface {
-	Get(int) (*http.Response, error)
+	GetUrls(int) (*http.Response, error)
 }
 
 type Binding struct {
-	AppID    string   `json:"app_id"`
-	Drains   []string `json:"drains"`
-	Hostname string   `json:"hostname"`
+	AppID    string  `json:"app_id"`
+	Drains   []Drain `json:"drains"`
+	Hostname string  `json:"hostname"`
+}
+
+type Drain struct {
+	Url           string        `json:"url"`
+	TLSCredential TLSCredential `json:"tls_credential"`
+	LastUpdate    time.Time     `json:"last_update1"`
+}
+
+type TLSCredential struct {
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
 }
 
 type Setter interface {
@@ -64,7 +75,7 @@ func (p *Poller) poll() {
 	nextID := 0
 	var bindings []Binding
 	for {
-		resp, err := p.apiClient.Get(nextID)
+		resp, err := p.apiClient.GetUrls(nextID)
 		if err != nil {
 			p.bindingRefreshErrorCounter.Add(1)
 			p.logger.Printf("failed to get id %d from CUPS Provider: %s", nextID, err)
@@ -92,9 +103,15 @@ func (p *Poller) poll() {
 func (p *Poller) toBindings(aResp apiResponse) []Binding {
 	var bindings []Binding
 	for k, v := range aResp.Results {
+		var drains []Drain
+		for _, d := range v.Drains {
+			drains = append(drains, Drain{
+				Url: d,
+			})
+		}
 		bindings = append(bindings, Binding{
 			AppID:    k,
-			Drains:   v.Drains,
+			Drains:   drains,
 			Hostname: v.Hostname,
 		})
 	}

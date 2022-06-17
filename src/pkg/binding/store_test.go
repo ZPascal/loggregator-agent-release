@@ -12,8 +12,12 @@ var _ = Describe("Store", func() {
 		store := binding.NewStore(metricsHelpers.NewMetricsRegistry())
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-1",
-				Drains:   []string{"drain-1"},
+				AppID: "app-1",
+				Drains: []binding.Drain{
+					{
+						Url: "drain-1",
+					},
+				},
 				Hostname: "host-1",
 			},
 		}
@@ -32,8 +36,12 @@ var _ = Describe("Store", func() {
 
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-1",
-				Drains:   []string{"drain-1"},
+				AppID: "app-1",
+				Drains: []binding.Drain{
+					{
+						Url: "drain-1",
+					},
+				},
 				Hostname: "host-1",
 			},
 		}
@@ -67,8 +75,10 @@ var _ = Describe("Store", func() {
 		store := binding.NewStore(metrics)
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-1",
-				Drains:   []string{"drain-1"},
+				AppID: "app-1",
+				Drains: []binding.Drain{
+					{Url: "drain-1"},
+				},
 				Hostname: "host-1",
 			},
 		}

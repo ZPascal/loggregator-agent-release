@@ -16,8 +16,9 @@ var _ = Describe("Handler", func() {
 	It("should write results from the store", func() {
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-1",
-				Drains:   []string{"drain-1"},
+				AppID: "app-1",
+				Drains: []binding.Drain{
+					{Url: "drain-1"}},
 				Hostname: "host-1",
 			},
 		}
