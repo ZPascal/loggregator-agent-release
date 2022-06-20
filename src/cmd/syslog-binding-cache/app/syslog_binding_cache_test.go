@@ -138,7 +138,7 @@ var _ = Describe("SyslogBindingCache", func() {
 
 		body, err := io.ReadAll(resp.Body)
 		Expect(err).ToNot(HaveOccurred())
-		
+
 		var results []binding.Binding
 		err = json.Unmarshal(body, &results)
 		Expect(err).ToNot(HaveOccurred())
@@ -201,18 +201,20 @@ var _ = Describe("SyslogBindingCache", func() {
 			{
 				Url:           "syslog://drain-e",
 				TLSCredential: binding.TLSCredential{Cert: "", Key: ""},
-				LastUpdate:    time.Time{},
 			},
 			{
 				Url:           "syslog://drain-f",
 				TLSCredential: binding.TLSCredential{Cert: "", Key: ""},
-				LastUpdate:    time.Time{},
 			},
 		}))
 	})
 })
 
 type results map[string]appBindings
+type certApiResponse struct {
+	LastUpdate time.Time                  `json:"last_update"`
+	Bindings   map[string]binding.Binding `json:"bindings"`
+}
 
 type appBindings struct {
 	Drains   []string `json:"drains"`
@@ -221,10 +223,11 @@ type appBindings struct {
 
 type fakeCC struct {
 	*httptest.Server
-	count           int
-	called          int64
-	withEmptyResult bool
-	results         results
+	count               int
+	called              int64
+	withEmptyResult     bool
+	results             results
+	certificateBindings certApiResponse
 }
 
 func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {
@@ -240,17 +243,17 @@ func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {
 
 	Expect(err).ToNot(HaveOccurred())
 
-	f.Server = httptest.NewUnstartedServer(f)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/internal/v4/syslog_drain_urls", f.serveSyslogDrainUrls)
+	mux.HandleFunc("/internal/v4/syslog_drain_urls_with_certs", f.serveSyslogDrainCerts)
+
+	f.Server = httptest.NewUnstartedServer(mux)
 	f.Server.TLS = tlsConfig
 	f.Server.StartTLS()
 }
 
-func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *fakeCC) serveSyslogDrainUrls(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt64(&f.called, 1)
-	if r.URL.Path != "/internal/v4/syslog_drain_urls" {
-		w.WriteHeader(500)
-		return
-	}
 
 	if r.URL.Query().Get("batch_size") != "1000" {
 		w.WriteHeader(500)
@@ -258,6 +261,15 @@ func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f.serveWithResults(w, r)
+}
+
+func (f *fakeCC) serveSyslogDrainCerts(w http.ResponseWriter, r *http.Request) {
+	td, err := json.Marshal(f.certificateBindings)
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+	w.Write(td)
 }
 
 func (f *fakeCC) serveWithResults(w http.ResponseWriter, r *http.Request) {

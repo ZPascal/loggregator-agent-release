@@ -195,6 +195,24 @@ func (c *fakeAPIClient) GetUrls(nextID int) (*http.Response, error) {
 	return resp, nil
 }
 
+func (c *fakeAPIClient) GetCerts(LastUpdate time.Time) (*http.Response, error) {
+
+	var binding certsResponse
+	select {
+	case err := <-c.errors:
+		return nil, err
+	default:
+	}
+
+	b, err := json.Marshal(&binding)
+	Expect(err).ToNot(HaveOccurred())
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader(b)),
+	}
+
+	return resp, nil
+}
+
 func (c *fakeAPIClient) called() int64 {
 	return atomic.LoadInt64(&c.numRequests)
 }
@@ -219,4 +237,9 @@ type response struct {
 		Hostname string
 	}
 	NextID int `json:"next_id"`
+}
+
+type certsResponse struct {
+	LastUpdate time.Time                  `json:"last_update"`
+	Bindings   map[string]binding.Binding `json:"bindings"`
 }
