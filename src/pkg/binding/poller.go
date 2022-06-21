@@ -40,6 +40,8 @@ type TLSCredential struct {
 	Key  string `json:"key"`
 }
 
+type bindingsMap map[string]Binding
+
 type Setter interface {
 	Set([]Binding)
 }
@@ -72,24 +74,36 @@ func (p *Poller) Poll() {
 }
 
 func (p *Poller) poll() {
+	bindings, err := p.pollBindings()
+	if err != nil {
+		return
+	}
+	bindings, err = p.pollMtlsBindings(bindings)
+	if err != nil {
+		return
+	}
+	p.storeBindings(bindings)
+}
+
+func (p *Poller) pollBindings() (bindingsMap, error) {
 	nextID := 0
-	results := make(map[string]Binding)
+	bindings := make(bindingsMap)
 
 	for {
 		resp, err := p.apiClient.GetUrls(nextID)
 		if err != nil {
 			p.bindingRefreshErrorCounter.Add(1)
 			p.logger.Printf("failed to get id %d from CUPS Provider: %s", nextID, err)
-			return
+			return nil, err
 		}
 		var aResp apiResponse
 		err = json.NewDecoder(resp.Body).Decode(&aResp)
 		if err != nil {
 			p.logger.Printf("failed to decode JSON: %s", err)
-			return
+			return nil, err
 		}
 
-		results = p.toResults(results, aResp)
+		bindings = p.toResults(bindings, aResp)
 
 		nextID = aResp.NextID
 
@@ -98,35 +112,39 @@ func (p *Poller) poll() {
 		}
 	}
 
+	return bindings, nil
+}
+
+func (p *Poller) pollMtlsBindings(bindings bindingsMap) (bindingsMap, error) {
 	resp, err := p.apiClient.GetCerts(time.Time{})
 	if err != nil {
 		p.bindingRefreshErrorCounter.Add(1)
-		p.logger.Printf("failed to get id %d from CUPS Provider: %s", nextID, err)
-		return
+		p.logger.Printf("failed to get mtls Bindings from CUPS Provider: %s", err)
+		return nil, err
 	}
 	var aResp certApiResponse
 	err = json.NewDecoder(resp.Body).Decode(&aResp)
 	if err != nil {
 		p.logger.Printf("failed to decode JSON: %s", err)
-		return
+		return nil, err
 	}
 
-	results = p.mergeCertificates(results, aResp.Bindings)
+	bindings = p.mergeMtlsBindings(bindings, aResp.Bindings)
 
-	bindings := p.toBindings(results)
-	p.lastBindingCount.Set(float64(len(bindings)))
-	p.store.Set(bindings)
+	return bindings, nil
 }
 
-func (p *Poller) toBindings(results map[string]Binding) []Binding {
+func (p *Poller) storeBindings(fetchedBindings bindingsMap) {
 	bindings := make([]Binding, 0)
-	for _, v := range results {
+	for _, v := range fetchedBindings {
 		bindings = append(bindings, v)
 	}
-	return bindings
+	p.lastBindingCount.Set(float64(len(bindings)))
+	p.store.Set(bindings)
+
 }
 
-func (p *Poller) toResults(results map[string]Binding, aResp apiResponse) map[string]Binding {
+func (p *Poller) toResults(bindings bindingsMap, aResp apiResponse) bindingsMap {
 	for k, v := range aResp.Results {
 		var drains []Drain
 		for _, d := range v.Drains {
@@ -134,16 +152,16 @@ func (p *Poller) toResults(results map[string]Binding, aResp apiResponse) map[st
 				Url: d,
 			})
 		}
-		results[k] = Binding{
+		bindings[k] = Binding{
 			AppID:    k,
 			Drains:   drains,
 			Hostname: v.Hostname,
 		}
 	}
-	return results
+	return bindings
 }
 
-func (p *Poller) mergeCertificates(bindings map[string]Binding, mtlsBindings map[string]Binding) map[string]Binding {
+func (p *Poller) mergeMtlsBindings(bindings bindingsMap, mtlsBindings bindingsMap) bindingsMap {
 	if mtlsBindings == nil {
 		return bindings
 	}
@@ -174,6 +192,6 @@ type Results map[string]struct {
 }
 
 type certApiResponse struct {
-	LastUpdate time.Time          `json:"last_update"`
-	Bindings   map[string]Binding `json:"bindings"`
+	LastUpdate time.Time   `json:"last_update"`
+	Bindings   bindingsMap `json:"bindings"`
 }
