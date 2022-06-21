@@ -51,6 +51,23 @@ var _ = Describe("Poller", func() {
 				},
 			},
 		}
+		apiClient.mtlsBindings <- mtlsResponse{
+			LastUpdate: time.Now(),
+			Bindings: map[string]binding.Binding{
+				"app-id-1": {
+					AppID: "app-id-1",
+					Drains: []binding.Drain{
+						{
+							Url: "drain-3",
+							TLSCredential: binding.TLSCredential{
+								Cert: "a cert",
+								Key:  "a key",
+							},
+						},
+					},
+				},
+			},
+		}
 
 		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
@@ -65,6 +82,12 @@ var _ = Describe("Poller", func() {
 				},
 				{
 					Url: "drain-2",
+				},
+				{
+					Url: "drain-3",
+					TLSCredential: binding.TLSCredential{
+						Cert: "a cert", Key: "a key",
+					},
 				},
 			},
 			Hostname: "app-hostname",
@@ -163,14 +186,16 @@ var _ = Describe("Poller", func() {
 type fakeAPIClient struct {
 	numRequests  int64
 	bindings     chan response
+	mtlsBindings chan mtlsResponse
 	errors       chan error
 	requestedIDs []int
 }
 
 func newFakeAPIClient() *fakeAPIClient {
 	return &fakeAPIClient{
-		bindings: make(chan response, 100),
-		errors:   make(chan error, 100),
+		bindings:     make(chan response, 100),
+		mtlsBindings: make(chan mtlsResponse, 100),
+		errors:       make(chan error, 100),
 	}
 }
 
@@ -197,10 +222,11 @@ func (c *fakeAPIClient) GetUrls(nextID int) (*http.Response, error) {
 
 func (c *fakeAPIClient) GetCerts(LastUpdate time.Time) (*http.Response, error) {
 
-	var binding certsResponse
+	var binding mtlsResponse
 	select {
 	case err := <-c.errors:
 		return nil, err
+	case binding = <-c.mtlsBindings:
 	default:
 	}
 
@@ -239,7 +265,7 @@ type response struct {
 	NextID int `json:"next_id"`
 }
 
-type certsResponse struct {
+type mtlsResponse struct {
 	LastUpdate time.Time                  `json:"last_update"`
 	Bindings   map[string]binding.Binding `json:"bindings"`
 }

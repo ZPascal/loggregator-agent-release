@@ -245,7 +245,7 @@ func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/internal/v4/syslog_drain_urls", f.serveSyslogDrainUrls)
-	mux.HandleFunc("/internal/v4/syslog_drain_urls_with_certs", f.serveSyslogDrainCerts)
+	mux.HandleFunc("/internal/v4/mtls_syslog_drain_urls", f.serveMtlsSyslogDrainUrls)
 
 	f.Server = httptest.NewUnstartedServer(mux)
 	f.Server.TLS = tlsConfig
@@ -263,8 +263,8 @@ func (f *fakeCC) serveSyslogDrainUrls(w http.ResponseWriter, r *http.Request) {
 	f.serveWithResults(w, r)
 }
 
-func (f *fakeCC) serveSyslogDrainCerts(w http.ResponseWriter, r *http.Request) {
-	td, err := json.Marshal(f.certificateBindings)
+func (f *fakeCC) serveMtlsSyslogDrainUrls(w http.ResponseWriter, r *http.Request) {
+	td, err := json.Marshal(f.mtlsBindings)
 	if err != nil {
 		w.WriteHeader(500)
 		return

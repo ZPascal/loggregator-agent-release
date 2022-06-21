@@ -8,7 +8,7 @@ import (
 
 var (
 	sDUrlsPathTemplate  = "%s/internal/v4/syslog_drain_urls?batch_size=%d&next_id=%d"
-	sDCertspathTemplate = "%s/internal/v4/syslog_drain_urls_with_certs?updated_since=%s"
+	sDCertspathTemplate = "%s/internal/v4/mtls_syslog_drain_urls?updated_since=%s"
 )
 
 type Client struct {
