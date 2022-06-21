@@ -49,25 +49,56 @@ var _ = Describe("SyslogBindingCache", func() {
 			},
 		}
 
+		m := mtlsApiResponse{
+			Bindings: map[string]binding.Binding{
+				"app-id-2": {
+					AppID: "app-id-2",
+					Drains: []binding.Drain{
+						{
+							Url: "mtls-syslog://drain-e",
+							TLSCredential: binding.TLSCredential{
+								Cert: "a cert",
+								Key:  "a key",
+							},
+						},
+					},
+				},
+				"app-id-3": {
+					AppID: "app-id-3",
+					Drains: []binding.Drain{
+						{
+							Url: "mtls-syslog://drain-f",
+							TLSCredential: binding.TLSCredential{
+								Cert: "a cert",
+								Key:  "a key",
+							},
+						},
+					},
+				},
+			},
+		}
 		capi = &fakeCC{
-			results: r,
+			results:      r,
+			mtlsBindings: m,
 		}
 		capi.startTLS(capiTestCerts)
 
 		config = app.Config{
-			APIURL:             capi.URL,
-			APIPollingInterval: 10 * time.Millisecond,
-			APIBatchSize:       1000,
-			APICAFile:          capiTestCerts.CA(),
-			APICertFile:        capiTestCerts.Cert("capi"),
-			APIKeyFile:         capiTestCerts.Key("capi"),
-			APICommonName:      "capi",
-			CacheCAFile:        bindingCacheTestCerts.CA(),
-			CacheCertFile:      bindingCacheTestCerts.Cert("binding-cache"),
-			CacheKeyFile:       bindingCacheTestCerts.Key("binding-cache"),
-			CacheCommonName:    "binding-cache",
-			CachePort:          cachePort,
-			AggregateDrains:    []string{"syslog://drain-e", "syslog://drain-f"},
+			APIURL:                  capi.URL,
+			APIPollingInterval:      10 * time.Millisecond,
+			APIMTLSPollingInterval:  10 * time.Millisecond,
+			BindingsProcessInterval: 20 * time.Millisecond,
+			APIBatchSize:            1000,
+			APICAFile:               capiTestCerts.CA(),
+			APICertFile:             capiTestCerts.Cert("capi"),
+			APIKeyFile:              capiTestCerts.Key("capi"),
+			APICommonName:           "capi",
+			CacheCAFile:             bindingCacheTestCerts.CA(),
+			CacheCertFile:           bindingCacheTestCerts.Cert("binding-cache"),
+			CacheKeyFile:            bindingCacheTestCerts.Key("binding-cache"),
+			CacheCommonName:         "binding-cache",
+			CachePort:               cachePort,
+			AggregateDrains:         []string{"syslog://drain-e", "syslog://drain-f"},
 		}
 		metricClient = metricsHelpers.NewMetricsRegistry()
 	})
@@ -143,7 +174,7 @@ var _ = Describe("SyslogBindingCache", func() {
 		err = json.Unmarshal(body, &results)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(results).To(HaveLen(2))
+		Expect(results).To(HaveLen(3))
 		b := findBinding(results, "app-id-1")
 		Expect(b.Drains).To(ConsistOf([]binding.Drain{
 			{
@@ -211,9 +242,9 @@ var _ = Describe("SyslogBindingCache", func() {
 })
 
 type results map[string]appBindings
-type certApiResponse struct {
-	LastUpdate time.Time                  `json:"last_update"`
-	Bindings   map[string]binding.Binding `json:"bindings"`
+
+type mtlsApiResponse struct {
+	Bindings map[string]binding.Binding `json:"bindings"`
 }
 
 type appBindings struct {
@@ -223,11 +254,11 @@ type appBindings struct {
 
 type fakeCC struct {
 	*httptest.Server
-	count               int
-	called              int64
-	withEmptyResult     bool
-	results             results
-	certificateBindings certApiResponse
+	count           int
+	called          int64
+	withEmptyResult bool
+	results         results
+	mtlsBindings    mtlsApiResponse
 }
 
 func (f *fakeCC) startTLS(testCerts *testhelper.TestCerts) {

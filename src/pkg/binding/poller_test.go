@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -32,9 +33,96 @@ var _ = Describe("Poller", func() {
 		metrics = metricsHelpers.NewMetricsRegistry()
 	})
 
+	It("contains a function that can merge two bindingMaps into a []Binding", func() {
+		nonMtls := binding.BindingsMap{
+			"app1": binding.Binding{
+				AppID: "app1",
+				Drains: []binding.Drain{
+					{Url: "syslog://app1.syslog"},
+					{Url: "syslog://app1.syslog.b"},
+				},
+			},
+			"app2": binding.Binding{
+				AppID: "app2",
+				Drains: []binding.Drain{
+					{Url: "syslog://app2.syslog"},
+				},
+			},
+		}
+		mtls := binding.BindingsMap{
+			"app1": binding.Binding{
+				AppID: "app1",
+				Drains: []binding.Drain{
+					{
+						Url: "mtls-syslog://app1.syslog",
+						TLSCredential: binding.TLSCredential{
+							Cert: "aCert",
+							Key:  "aKey",
+						},
+					},
+				},
+			},
+			"app3": binding.Binding{
+				AppID: "app3",
+				Drains: []binding.Drain{
+					{Url: "mtls-syslog://app3.syslog",
+						TLSCredential: binding.TLSCredential{
+							Cert: "anotherCert",
+							Key:  "anotherKey",
+						},
+					},
+				},
+			},
+		}
+		Expect(binding.MergeBindings(nonMtls, mtls)).To(Equal(
+			[]binding.Binding{
+				{
+					AppID: "app1",
+					Drains: []binding.Drain{
+						{
+							Url:           "mtls-syslog://app1.syslog",
+							TLSCredential: binding.TLSCredential{Cert: "aCert", Key: "aKey"},
+						},
+						{
+							Url:           "syslog://app1.syslog",
+							TLSCredential: binding.TLSCredential{Cert: "", Key: ""},
+						},
+						{
+							Url:           "syslog://app1.syslog.b",
+							TLSCredential: binding.TLSCredential{Cert: "", Key: ""},
+						},
+					},
+					Hostname: "",
+				},
+				{
+					AppID: "app2",
+					Drains: []binding.Drain{
+						{
+							Url:           "syslog://app2.syslog",
+							TLSCredential: binding.TLSCredential{Cert: "", Key: ""},
+						},
+					},
+					Hostname: "",
+				},
+				{
+					AppID: "app3",
+					Drains: []binding.Drain{
+						{
+							Url:           "mtls-syslog://app3.syslog",
+							TLSCredential: binding.TLSCredential{Cert: "anotherCert", Key: "anotherKey"},
+						},
+					},
+					Hostname: "",
+				},
+			},
+		))
+	})
+
 	It("polls for bindings on an interval", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
+		go p.MtlsPoll()
+		go p.Process()
 
 		Eventually(apiClient.called).Should(BeNumerically(">=", 2))
 	})
@@ -52,8 +140,7 @@ var _ = Describe("Poller", func() {
 			},
 		}
 		apiClient.mtlsBindings <- mtlsResponse{
-			LastUpdate: time.Now(),
-			Bindings: map[string]binding.Binding{
+			Bindings: binding.BindingsMap{
 				"app-id-1": {
 					AppID: "app-id-1",
 					Drains: []binding.Drain{
@@ -69,8 +156,10 @@ var _ = Describe("Poller", func() {
 			},
 		}
 
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
+		go p.MtlsPoll()
+		go p.Process()
 
 		var expected []binding.Binding
 		Eventually(store.bindings).Should(Receive(&expected))
@@ -120,8 +209,10 @@ var _ = Describe("Poller", func() {
 			},
 		}
 
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
+		go p.MtlsPoll()
+		go p.Process()
 
 		var expected []binding.Binding
 		Eventually(store.bindings).Should(Receive(&expected))
@@ -156,8 +247,10 @@ var _ = Describe("Poller", func() {
 	})
 
 	It("tracks the number of API errors", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
+		go p.MtlsPoll()
+		go p.Process()
 
 		apiClient.errors <- errors.New("expected")
 
@@ -176,7 +269,7 @@ var _ = Describe("Poller", func() {
 				"app-id-2": {},
 			},
 		}
-		binding.NewPoller(apiClient, time.Hour, store, metrics, logger)
+		binding.NewPoller(apiClient, time.Hour, time.Hour, time.Hour, store, metrics, logger)
 
 		Expect(metrics.GetMetric("last_binding_refresh_count", nil).Value()).
 			To(BeNumerically("==", 2))
@@ -220,7 +313,7 @@ func (c *fakeAPIClient) GetUrls(nextID int) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *fakeAPIClient) GetCerts(LastUpdate time.Time) (*http.Response, error) {
+func (c *fakeAPIClient) GetCerts() (*http.Response, error) {
 
 	var binding mtlsResponse
 	select {
@@ -244,17 +337,31 @@ func (c *fakeAPIClient) called() int64 {
 }
 
 type fakeStore struct {
-	bindings chan []binding.Binding
+	bindings        chan []binding.Binding
+	nonMtlsBindings chan binding.BindingsMap
+	mtlsBindings    chan binding.BindingsMap
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		bindings: make(chan []binding.Binding, 100),
+		bindings:        make(chan []binding.Binding, 100),
+		nonMtlsBindings: make(chan binding.BindingsMap, 100),
+		mtlsBindings:    make(chan binding.BindingsMap, 100),
 	}
 }
 
-func (c *fakeStore) Set(b []binding.Binding) {
-	c.bindings <- b
+func (c *fakeStore) Merge(f func(nonMtlsBindings binding.BindingsMap, mtlsBindings binding.BindingsMap) []binding.Binding) {
+	mrg := f(<-c.nonMtlsBindings, <-c.mtlsBindings)
+	fmt.Printf("%+v\n", mrg)
+	c.bindings <- mrg
+}
+
+func (c *fakeStore) SetNonMtls(b binding.BindingsMap) {
+	c.nonMtlsBindings <- b
+}
+
+func (c *fakeStore) SetMtls(b binding.BindingsMap) {
+	c.mtlsBindings <- b
 }
 
 type response struct {
@@ -266,6 +373,5 @@ type response struct {
 }
 
 type mtlsResponse struct {
-	LastUpdate time.Time                  `json:"last_update"`
-	Bindings   map[string]binding.Binding `json:"bindings"`
+	Bindings binding.BindingsMap `json:"bindings"`
 }
