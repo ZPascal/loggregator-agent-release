@@ -32,7 +32,7 @@ func (s *Store) Get() []Binding {
 	return s.bindings
 }
 
-func (s *Store) Merge(f func(nonMtlsBindings BindingsMap, mtlsBindings BindingsMap) []Binding) {
+func (s *Store) Merge(f func(nonMtlsBindings, mtlsBindings BindingsMap) []Binding) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

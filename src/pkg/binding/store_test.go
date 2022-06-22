@@ -99,48 +99,48 @@ var _ = Describe("Store", func() {
 
 	// The race detector will cause a failure here
 	// if the store is not thread safe
-	// It("should be thread safe", func() {
-	// 	store := binding.NewStore(metricsHelpers.NewMetricsRegistry())
+	It("should be thread safe", func() {
+		store := binding.NewStore(metricsHelpers.NewMetricsRegistry())
 
-	// 	go func() {
-	// 		for i := 0; i < 1000; i++ {
-	// 			nonMtlsBindings := binding.BindingsMap{
-	// 				"app-1": binding.Binding{
-	// 					AppID: "app-1",
-	// 					Drains: []binding.Drain{
-	// 						{
-	// 							Url: "syslog://app-1-syslog",
-	// 						},
-	// 					},
-	// 					Hostname: "host-1",
-	// 				},
-	// 			}
+		go func() {
+			for i := 0; i < 1000; i++ {
+				nonMtlsBindings := binding.BindingsMap{
+					"app-1": binding.Binding{
+						AppID: "app-1",
+						Drains: []binding.Drain{
+							{
+								Url: "syslog://app-1-syslog",
+							},
+						},
+						Hostname: "host-1",
+					},
+				}
 
-	// 			mtlsBindings := binding.BindingsMap{
-	// 				"app-1": binding.Binding{
-	// 					AppID: "app-1",
-	// 					Drains: []binding.Drain{
-	// 						{
-	// 							Url: "syslog-mtls://app-1-syslog",
-	// 							TLSCredential: binding.TLSCredential{
-	// 								Cert: "a cert",
-	// 								Key:  "a key",
-	// 							},
-	// 						},
-	// 					},
-	// 					Hostname: "host-1",
-	// 				},
-	// 			}
-	// 			store.SetNonMtls(nonMtlsBindings)
-	// 			store.SetMtls(mtlsBindings)
-	// 			store.Merge()
-	// 		}
-	// 	}()
+				mtlsBindings := binding.BindingsMap{
+					"app-1": binding.Binding{
+						AppID: "app-1",
+						Drains: []binding.Drain{
+							{
+								Url: "syslog-mtls://app-1-syslog",
+								TLSCredential: binding.TLSCredential{
+									Cert: "a cert",
+									Key:  "a key",
+								},
+							},
+						},
+						Hostname: "host-1",
+					},
+				}
+				store.SetNonMtls(nonMtlsBindings)
+				store.SetMtls(mtlsBindings)
+				store.Merge(binding.MergeBindings)
+			}
+		}()
 
-	// 	for i := 0; i < 1000; i++ {
-	// 		_ = store.Get()
-	// 	}
-	// })
+		for i := 0; i < 1000; i++ {
+			_ = store.Get()
+		}
+	})
 
 	It("tracks the number of bindings", func() {
 		metrics := metricsHelpers.NewMetricsRegistry()

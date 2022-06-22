@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -350,9 +349,8 @@ func newFakeStore() *fakeStore {
 	}
 }
 
-func (c *fakeStore) Merge(f func(nonMtlsBindings binding.BindingsMap, mtlsBindings binding.BindingsMap) []binding.Binding) {
+func (c *fakeStore) Merge(f func(nonMtlsBindings, mtlsBindings binding.BindingsMap) []binding.Binding) {
 	mrg := f(<-c.nonMtlsBindings, <-c.mtlsBindings)
-	fmt.Printf("%+v\n", mrg)
 	c.bindings <- mrg
 }
 

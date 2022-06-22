@@ -46,12 +46,12 @@ type TLSCredential struct {
 type BindingsMap map[string]Binding
 
 type Setter interface {
-	Merge(f func(nonMtlsBindings BindingsMap, mtlsBindings BindingsMap) []Binding)
+	Merge(f func(nonMtlsBindings, mtlsBindings BindingsMap) []Binding)
 	SetNonMtls(bindings BindingsMap)
 	SetMtls(bindings BindingsMap)
 }
 
-func NewPoller(ac client, pi time.Duration, mtlsPi time.Duration, bpi time.Duration, s Setter, m Metrics, logger *log.Logger) *Poller {
+func NewPoller(ac client, pi, mtlsPi, bpi time.Duration, s Setter, m Metrics, logger *log.Logger) *Poller {
 	p := &Poller{
 		apiClient:               ac,
 		pollingInterval:         pi,
@@ -177,7 +177,7 @@ func (p *Poller) toResults(bindings BindingsMap, aResp apiResponse) BindingsMap 
 	return bindings
 }
 
-func MergeBindings(nonMtlsBindings BindingsMap, mtlsBindings BindingsMap) []Binding {
+func MergeBindings(nonMtlsBindings, mtlsBindings BindingsMap) []Binding {
 	bindings := make(BindingsMap, 0)
 	bindingsStore := make([]Binding, 0)
 
