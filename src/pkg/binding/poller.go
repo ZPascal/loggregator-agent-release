@@ -24,9 +24,19 @@ type client interface {
 }
 
 type Binding struct {
-	AppID    string   `json:"app_id"`
-	Drains   []string `json:"drains"`
-	Hostname string   `json:"hostname"`
+	AppID    string  `json:"app_id"`
+	Drains   []Drain `json:"drains"`
+	Hostname string  `json:"hostname"`
+}
+
+type Drain struct {
+	Url         string      `json:"url"`
+	Credentials Credentials `json:"credentials"`
+}
+
+type Credentials struct {
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
 }
 
 type Setter interface {
@@ -103,7 +113,7 @@ func (p *Poller) toBindings(aResp apiResponse) []Binding {
 
 type apiResponse struct {
 	Results map[string]struct {
-		Drains   []string
+		Drains   []Drain
 		Hostname string
 	}
 	NextID int `json:"next_id"`

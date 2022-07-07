@@ -23,7 +23,7 @@ func (u *URLBinding) Scheme() string {
 }
 
 func buildBinding(c context.Context, b Binding) (*URLBinding, error) {
-	url, err := url.Parse(b.Drain)
+	url, err := url.Parse(b.Drain.Url)
 	if err != nil {
 		return nil, err
 	}

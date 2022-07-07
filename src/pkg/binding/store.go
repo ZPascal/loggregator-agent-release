@@ -40,7 +40,7 @@ func (s *Store) Set(bindings []Binding) {
 }
 
 type AggregateStore struct {
-	AggregateDrains []string
+	AggregateDrains []Drain
 }
 
 func (store *AggregateStore) Get() []Binding {
