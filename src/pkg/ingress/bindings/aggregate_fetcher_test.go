@@ -30,12 +30,12 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 			Expect(b).To(ConsistOf(
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain1.url.com",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain1.url.com"},
 					Type:  syslog.BINDING_TYPE_LOG,
 				},
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true"},
 					Type:  syslog.BINDING_TYPE_AGGREGATE,
 				},
 			))
@@ -54,7 +54,7 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 			Expect(b).To(ConsistOf(
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain1.url.com",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain1.url.com"},
 					Type:  syslog.BINDING_TYPE_LOG,
 				},
 			))
@@ -76,7 +76,7 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 				"syslog://aggregate-drain1.url.com",
 				"syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
 			}
-			cacheFetcher := mockCacheFetcher{bindings: []binding.Binding{{Drains: []string{"syslog://drain.url.com"}}}}
+			cacheFetcher := mockCacheFetcher{bindings: []binding.Binding{{Drains: []binding.Drain{{Url: "syslog://drain.url.com"}}}}}
 			fetcher := bindings.NewAggregateDrainFetcher(bs, &cacheFetcher)
 
 			b, err := fetcher.FetchBindings()
@@ -85,22 +85,22 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 			Expect(b).To(ConsistOf(
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain1.url.com",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain1.url.com"},
 					Type:  syslog.BINDING_TYPE_LOG,
 				},
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true"},
 					Type:  syslog.BINDING_TYPE_AGGREGATE,
 				},
 			))
 		})
 		It("returns results from cache if no drains", func() {
 			bs := []string{""}
-			cacheFetcher := mockCacheFetcher{bindings: []binding.Binding{{Drains: []string{
-				"syslog://aggregate-drain1.url.com",
-				"syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
-				"B@D/aggregate-d\rain1.//l.cm",
+			cacheFetcher := mockCacheFetcher{bindings: []binding.Binding{{Drains: []binding.Drain{
+				{Url: "syslog://aggregate-drain1.url.com"},
+				{Url: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true"},
+				{Url: "B@D/aggregate-d\rain1.//l.cm"},
 			}}}}
 			fetcher := bindings.NewAggregateDrainFetcher(bs, &cacheFetcher)
 
@@ -110,12 +110,12 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 			Expect(b).To(ConsistOf(
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain1.url.com",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain1.url.com"},
 					Type:  syslog.BINDING_TYPE_LOG,
 				},
 				syslog.Binding{
 					AppId: "",
-					Drain: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
+					Drain: syslog.Drain{Url: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true"},
 					Type:  syslog.BINDING_TYPE_AGGREGATE,
 				},
 			))

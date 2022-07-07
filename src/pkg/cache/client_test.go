@@ -31,8 +31,12 @@ var _ = Describe("Client", func() {
 	It("returns bindings from the cache", func() {
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-id-1",
-				Drains:   []string{"drain-1"},
+				AppID: "app-id-1",
+				Drains: []binding.Drain{
+					{
+						Url: "drain-1",
+					},
+				},
 				Hostname: "host-1",
 			},
 		}
@@ -51,8 +55,13 @@ var _ = Describe("Client", func() {
 	It("returns aggregate drains from the cache", func() {
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-id-1",
-				Drains:   []string{"drain-1"},
+				AppID: "app-id-1",
+				// Drains:   []string{"drain-1"},
+				Drains: []binding.Drain{
+					{
+						Url: "drain-1",
+					},
+				},
 				Hostname: "host-1",
 			},
 		}

@@ -35,7 +35,11 @@ func (a *AggregateDrainFetcher) FetchBindings() ([]syslog.Binding, error) {
 		}
 		syslogBindings := []syslog.Binding{}
 		for _, i := range aggregate {
-			syslogBindings = append(syslogBindings, parseBindings(i.Drains)...)
+			var drains []string
+			for _, drain := range i.Drains {
+				drains = append(drains, drain.Url)
+			}
+			syslogBindings = append(syslogBindings, parseBindings(drains)...)
 		}
 		return syslogBindings, nil
 	} else {
@@ -59,7 +63,7 @@ func parseBindings(urls []string) []syslog.Binding {
 		}
 		binding := syslog.Binding{
 			AppId: "",
-			Drain: b,
+			Drain: syslog.Drain{Url: b},
 			Type:  bindingType,
 		}
 		syslogBindings = append(syslogBindings, binding)

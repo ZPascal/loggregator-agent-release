@@ -77,18 +77,25 @@ func (f *BindingFetcher) DrainLimit() int {
 	return f.limit
 }
 
+type ByUrl []binding.Drain
+
+func (b ByUrl) Len() int           { return len(b) }
+func (b ByUrl) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b ByUrl) Less(i, j int) bool { return b[i].Url < b[j].Url }
+
 func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int) []syslog.Binding {
 	var bindings []syslog.Binding
 	for _, b := range bs {
+
 		drains := b.Drains
-		sort.Strings(drains)
+		sort.Sort(ByUrl(drains))
 
 		if perAppLimit < len(drains) {
 			drains = drains[:perAppLimit]
 		}
 
 		for _, d := range drains {
-			u, err := url.Parse(d)
+			u, err := url.Parse(d.Url)
 			if err != nil {
 				continue
 			}
@@ -108,7 +115,7 @@ func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int)
 			binding := syslog.Binding{
 				AppId:    b.AppID,
 				Hostname: b.Hostname,
-				Drain:    u.String(),
+				Drain:    syslog.Drain{Url: u.String()},
 				Type:     t,
 			}
 			bindings = append(bindings, binding)

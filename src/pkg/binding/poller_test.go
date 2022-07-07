@@ -42,11 +42,38 @@ var _ = Describe("Poller", func() {
 	It("calls the api client and stores the result", func() {
 		apiClient.bindings <- response{
 			Results: map[string]struct {
-				Drains   []string
+				Drains []struct {
+					Url         string
+					Credentials struct {
+						Cert string
+						Key  string
+					}
+				}
 				Hostname string
 			}{
 				"app-id-1": {
-					Drains:   []string{"drain-1", "drain-2"},
+					Drains: []struct {
+						Url         string
+						Credentials struct {
+							Cert string
+							Key  string
+						}
+					}{
+						{
+							Url: "drain-1",
+							Credentials: struct {
+								Cert string
+								Key  string
+							}{},
+						},
+						{
+							Url: "drain-2",
+							Credentials: struct {
+								Cert string
+								Key  string
+							}{},
+						},
+					},
 					Hostname: "app-hostname",
 				},
 			},
@@ -58,8 +85,15 @@ var _ = Describe("Poller", func() {
 		var expected []binding.Binding
 		Eventually(store.bindings).Should(Receive(&expected))
 		Expect(expected).To(ConsistOf(binding.Binding{
-			AppID:    "app-id-1",
-			Drains:   []string{"drain-1", "drain-2"},
+			AppID: "app-id-1",
+			Drains: []binding.Drain{
+				{
+					Url: "drain-1",
+				},
+				{
+					Url: "drain-2",
+				},
+			},
 			Hostname: "app-hostname",
 		}))
 	})
@@ -68,11 +102,30 @@ var _ = Describe("Poller", func() {
 		apiClient.bindings <- response{
 			NextID: 2,
 			Results: map[string]struct {
-				Drains   []string
+				Drains []struct {
+					Url         string
+					Credentials struct {
+						Cert string
+						Key  string
+					}
+				}
 				Hostname string
 			}{
 				"app-id-1": {
-					Drains:   []string{"drain-1", "drain-2"},
+					Drains: []struct {
+						Url         string
+						Credentials struct {
+							Cert string
+							Key  string
+						}
+					}{
+						{
+							Url: "drain-1",
+						},
+						{
+							Url: "drain-2",
+						},
+					},
 					Hostname: "app-hostname",
 				},
 			},
@@ -80,11 +133,30 @@ var _ = Describe("Poller", func() {
 
 		apiClient.bindings <- response{
 			Results: map[string]struct {
-				Drains   []string
+				Drains []struct {
+					Url         string
+					Credentials struct {
+						Cert string
+						Key  string
+					}
+				}
 				Hostname string
 			}{
 				"app-id-2": {
-					Drains:   []string{"drain-3", "drain-4"},
+					Drains: []struct {
+						Url         string
+						Credentials struct {
+							Cert string
+							Key  string
+						}
+					}{
+						{
+							Url: "drain-3",
+						},
+						{
+							Url: "drain-4",
+						},
+					},
 					Hostname: "app-hostname",
 				},
 			},
@@ -97,13 +169,27 @@ var _ = Describe("Poller", func() {
 		Eventually(store.bindings).Should(Receive(&expected))
 		Expect(expected).To(ConsistOf(
 			binding.Binding{
-				AppID:    "app-id-1",
-				Drains:   []string{"drain-1", "drain-2"},
+				AppID: "app-id-1",
+				Drains: []binding.Drain{
+					{
+						Url: "drain-1",
+					},
+					{
+						Url: "drain-2",
+					},
+				},
 				Hostname: "app-hostname",
 			},
 			binding.Binding{
-				AppID:    "app-id-2",
-				Drains:   []string{"drain-3", "drain-4"},
+				AppID: "app-id-2",
+				Drains: []binding.Drain{
+					{
+						Url: "drain-3",
+					},
+					{
+						Url: "drain-4",
+					},
+				},
 				Hostname: "app-hostname",
 			},
 		))
@@ -125,7 +211,13 @@ var _ = Describe("Poller", func() {
 	It("tracks the number of bindings returned from CAPI", func() {
 		apiClient.bindings <- response{
 			Results: map[string]struct {
-				Drains   []string
+				Drains []struct {
+					Url         string
+					Credentials struct {
+						Cert string
+						Key  string
+					}
+				}
 				Hostname string
 			}{
 				"app-id-1": {},
@@ -194,7 +286,13 @@ func (c *fakeStore) Set(b []binding.Binding) {
 
 type response struct {
 	Results map[string]struct {
-		Drains   []string
+		Drains []struct {
+			Url         string
+			Credentials struct {
+				Cert string
+				Key  string
+			}
+		}
 		Hostname string
 	}
 	NextID int `json:"next_id"`

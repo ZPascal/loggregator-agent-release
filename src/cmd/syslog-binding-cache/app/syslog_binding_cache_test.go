@@ -40,11 +40,11 @@ var _ = Describe("SyslogBindingCache", func() {
 	BeforeEach(func() {
 		r := results{
 			"app-id-1": appBindings{
-				Drains:   []string{"syslog://drain-a", "syslog://drain-b"},
+				Drains:   []binding.Drain{{Url: "syslog://drain-a"}, {Url: "syslog://drain-b"}},
 				Hostname: "org.space.app-name",
 			},
 			"app-id-2": appBindings{
-				Drains:   []string{"syslog://drain-c", "syslog://drain-d"},
+				Drains:   []binding.Drain{{Url: "syslog://drain-c"}, {Url: "syslog://drain-d"}},
 				Hostname: "org.space.app-name-2",
 			},
 		}
@@ -145,11 +145,11 @@ var _ = Describe("SyslogBindingCache", func() {
 
 		Expect(results).To(HaveLen(2))
 		b := findBinding(results, "app-id-1")
-		Expect(b.Drains).To(ConsistOf("syslog://drain-a", "syslog://drain-b"))
+		Expect(b.Drains).To(ConsistOf(binding.Drain{Url: "syslog://drain-a"}, binding.Drain{Url: "syslog://drain-b"}))
 		Expect(b.Hostname).To(Equal("org.space.app-name"))
 
 		b = findBinding(results, "app-id-2")
-		Expect(b.Drains).To(ConsistOf("syslog://drain-c", "syslog://drain-d"))
+		Expect(b.Drains).To(ConsistOf(binding.Drain{Url: "syslog://drain-c"}, binding.Drain{Url:"syslog://drain-d"}))
 		Expect(b.Hostname).To(Equal("org.space.app-name-2"))
 	})
 
@@ -183,15 +183,15 @@ var _ = Describe("SyslogBindingCache", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(result).To(HaveLen(1))
-		Expect(result[0].Drains).To(ConsistOf("syslog://drain-e", "syslog://drain-f"))
+		Expect(result[0].Drains).To(ConsistOf(binding.Drain{Url: "syslog://drain-e"}, binding.Drain{Url: "syslog://drain-f"}))
 	})
 })
 
 type results map[string]appBindings
 
 type appBindings struct {
-	Drains   []string `json:"drains"`
-	Hostname string   `json:"hostname"`
+	Drains   []binding.Drain `json:"drains"`
+	Hostname string          `json:"hostname"`
 }
 
 type fakeCC struct {
