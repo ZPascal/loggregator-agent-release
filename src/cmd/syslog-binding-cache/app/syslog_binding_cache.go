@@ -55,7 +55,7 @@ func (sbc *SyslogBindingCache) Run() {
 		aggregateDrains = append(aggregateDrains, binding.Drain{Url: ad})
 	}
 	aggregateStore := binding.AggregateStore{AggregateDrains: aggregateDrains}
-	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log)
+	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log, sbc.config.LegacyAPI)
 
 	go poller.Poll()
 

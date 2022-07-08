@@ -17,6 +17,8 @@ type Poller struct {
 	logger                     *log.Logger
 	bindingRefreshErrorCounter metrics.Counter
 	lastBindingCount           metrics.Gauge
+
+	legacy bool
 }
 
 type client interface {
@@ -43,7 +45,7 @@ type Setter interface {
 	Set([]Binding)
 }
 
-func NewPoller(ac client, pi time.Duration, s Setter, m Metrics, logger *log.Logger) *Poller {
+func NewPoller(ac client, pi time.Duration, s Setter, m Metrics, logger *log.Logger, legacy bool) *Poller {
 	p := &Poller{
 		apiClient:       ac,
 		pollingInterval: pi,
@@ -57,6 +59,7 @@ func NewPoller(ac client, pi time.Duration, s Setter, m Metrics, logger *log.Log
 			"last_binding_refresh_count",
 			"Current number of bindings received from binding provider during last refresh.",
 		),
+		legacy: legacy,
 	}
 	p.poll()
 	return p
@@ -80,15 +83,29 @@ func (p *Poller) poll() {
 			p.logger.Printf("failed to get id %d from CUPS Provider: %s", nextID, err)
 			return
 		}
-		var aResp apiResponse
-		err = json.NewDecoder(resp.Body).Decode(&aResp)
-		if err != nil {
-			p.logger.Printf("failed to decode JSON: %s", err)
-			return
-		}
+		var (
+			aResp       apiResponse
+			legacyAResp legacyApiResponse
+		)
+		if p.legacy {
+			err = json.NewDecoder(resp.Body).Decode(&legacyAResp)
+			if err != nil {
+				p.logger.Printf("failed to decode JSON: %s", err)
+				return
+			}
 
-		bindings = append(bindings, p.toBindings(aResp)...)
-		nextID = aResp.NextID
+			bindings = append(bindings, p.legacyToBindings(legacyAResp)...)
+			nextID = legacyAResp.NextID
+		} else {
+			err = json.NewDecoder(resp.Body).Decode(&aResp)
+			if err != nil {
+				p.logger.Printf("failed to decode JSON: %s", err)
+				return
+			}
+
+			bindings = append(bindings, p.toBindings(aResp)...)
+			nextID = aResp.NextID
+		}
 
 		if nextID == 0 {
 			break
@@ -111,9 +128,33 @@ func (p *Poller) toBindings(aResp apiResponse) []Binding {
 	return bindings
 }
 
+func (p *Poller) legacyToBindings(aResp legacyApiResponse) []Binding {
+	var bindings []Binding
+	for k, v := range aResp.Results {
+		var drains []Drain
+		for _, d := range v.Drains {
+			drains = append(drains, Drain{Url: d})
+		}
+		bindings = append(bindings, Binding{
+			AppID:    k,
+			Drains:   drains,
+			Hostname: v.Hostname,
+		})
+	}
+	return bindings
+}
+
 type apiResponse struct {
 	Results map[string]struct {
 		Drains   []Drain
+		Hostname string
+	}
+	NextID int `json:"next_id"`
+}
+
+type legacyApiResponse struct {
+	Results map[string]struct {
+		Drains   []string
 		Hostname string
 	}
 	NextID int `json:"next_id"`
