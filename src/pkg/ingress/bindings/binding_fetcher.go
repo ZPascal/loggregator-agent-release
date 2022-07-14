@@ -64,6 +64,7 @@ func (f *BindingFetcher) FetchBindings() ([]syslog.Binding, error) {
 	start := time.Now()
 
 	bindings, err := f.getter.Get()
+
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +116,12 @@ func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int)
 			binding := syslog.Binding{
 				AppId:    b.AppID,
 				Hostname: b.Hostname,
-				Drain:    syslog.Drain{Url: u.String()},
-				Type:     t,
+				Drain: syslog.Drain{
+					Url: u.String(),
+					Credentials: syslog.Credentials{
+						Cert: d.Credentials.Cert,
+						Key:  d.Credentials.Key}},
+				Type: t,
 			}
 			bindings = append(bindings, binding)
 		}

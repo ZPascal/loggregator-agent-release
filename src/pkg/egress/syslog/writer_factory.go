@@ -3,6 +3,7 @@ package syslog
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 
 	metrics "code.cloudfoundry.org/go-metric-registry"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress"
@@ -64,6 +65,13 @@ func (f WriterFactory) NewWriter(
 			converter,
 		), nil
 	case "syslog-tls":
+		if len(urlBinding.Certificate) > 0 && len(urlBinding.PrivateKey) > 0 {
+			credentials, err := tls.X509KeyPair(urlBinding.Certificate, urlBinding.PrivateKey)
+			if err != nil {
+				log.Fatalf("Failed to load certificate: %s", err)
+			}
+			tlsConfig.Certificates = []tls.Certificate{credentials}
+		}
 		w, err = NewTLSWriter(
 			urlBinding,
 			f.netConf,
