@@ -35,19 +35,14 @@ func (s *Store) Set(bindings []Binding) {
 
 	s.mu.Lock()
 	s.bindings = bindings
-	s.bindingCount.Set(float64(len(s.bindings)))
+	s.bindingCount.Set(CalculateBindingCount(s.bindings))
 	s.mu.Unlock()
 }
 
 type AggregateStore struct {
-	AggregateDrains []Drain
+	AggregateDrains []string
 }
 
-func (store *AggregateStore) Get() []Binding {
-	return []Binding{
-		{
-			AppID:  "",
-			Drains: store.AggregateDrains,
-		},
-	}
+func (store *AggregateStore) Get() []string {
+	return store.AggregateDrains
 }

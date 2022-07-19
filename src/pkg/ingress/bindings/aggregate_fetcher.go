@@ -3,30 +3,30 @@ package bindings
 import (
 	"net/url"
 
-	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/binding"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
 )
 
 type CacheFetcher interface {
-	GetAggregate() ([]binding.Binding, error)
+	GetAggregate() ([]string, error)
 }
 
 type AggregateDrainFetcher struct {
-	bindings []syslog.Binding
+	bindings []string
 	cf       CacheFetcher
 }
 
 func NewAggregateDrainFetcher(bindings []string, cf CacheFetcher) *AggregateDrainFetcher {
 	drainFetcher := &AggregateDrainFetcher{cf: cf}
-	parsedDrains := parseBindings(bindings)
-	drainFetcher.bindings = parsedDrains
+	drainFetcher.bindings = bindings
 	return drainFetcher
 }
 
 func (a *AggregateDrainFetcher) FetchBindings() ([]syslog.Binding, error) {
 	if len(a.bindings) != 0 {
 		var bindings []syslog.Binding
-		bindings = append(bindings, a.bindings...)
+		for _, binding := range a.bindings {
+			bindings = append(bindings, syslog.Binding{Drain: syslog.Drain{Url: binding}})
+		}
 		return bindings, nil
 	} else if a.cf != nil {
 		aggregate, err := a.cf.GetAggregate()
@@ -34,13 +34,7 @@ func (a *AggregateDrainFetcher) FetchBindings() ([]syslog.Binding, error) {
 			return []syslog.Binding{}, err
 		}
 		syslogBindings := []syslog.Binding{}
-		for _, i := range aggregate {
-			var drains []string
-			for _, drain := range i.Drains {
-				drains = append(drains, drain.Url)
-			}
-			syslogBindings = append(syslogBindings, parseBindings(drains)...)
-		}
+		syslogBindings = append(syslogBindings, parseBindings(aggregate)...)
 		return syslogBindings, nil
 	} else {
 		return []syslog.Binding{}, nil

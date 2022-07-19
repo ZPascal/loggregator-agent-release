@@ -3,7 +3,6 @@ package bindings_test
 import (
 	"errors"
 
-	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/binding"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/ingress/bindings"
 	. "github.com/onsi/ginkgo"
@@ -76,7 +75,7 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 				"syslog://aggregate-drain1.url.com",
 				"syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
 			}
-			cacheFetcher := mockCacheFetcher{bindings: []binding.Binding{{Drains: []binding.Drain{{Url: "syslog://drain.url.com"}}}}}
+			cacheFetcher := mockCacheFetcher{bindings: []string{"syslog://drain.url.com"}}
 			fetcher := bindings.NewAggregateDrainFetcher(bs, &cacheFetcher)
 
 			b, err := fetcher.FetchBindings()
@@ -97,11 +96,11 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 		})
 		It("returns results from cache if no drains", func() {
 			bs := []string{""}
-			cacheFetcher := mockCacheFetcher{bindings: []binding.Binding{{Drains: []binding.Drain{
-				{Url: "syslog://aggregate-drain1.url.com"},
-				{Url: "syslog://aggregate-drain2.url.com?include-metrics-deprecated=true"},
-				{Url: "B@D/aggregate-d\rain1.//l.cm"},
-			}}}}
+			cacheFetcher := mockCacheFetcher{bindings: []string{
+				"syslog://aggregate-drain1.url.com",
+				"syslog://aggregate-drain2.url.com?include-metrics-deprecated=true",
+				"B@D/aggregate-d\rain1.//l.cm"},
+			}
 			fetcher := bindings.NewAggregateDrainFetcher(bs, &cacheFetcher)
 
 			b, err := fetcher.FetchBindings()
@@ -132,10 +131,10 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 })
 
 type mockCacheFetcher struct {
-	bindings []binding.Binding
+	bindings []string
 	err      error
 }
 
-func (m *mockCacheFetcher) GetAggregate() ([]binding.Binding, error) {
+func (m *mockCacheFetcher) GetAggregate() ([]string, error) {
 	return m.bindings, m.err
 }

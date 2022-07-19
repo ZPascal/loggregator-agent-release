@@ -27,13 +27,13 @@ var _ = Describe("Poller", func() {
 	)
 
 	BeforeEach(func() {
-		apiClient = newFakeAPIClient(false)
+		apiClient = newFakeAPIClient()
 		store = newFakeStore()
 		metrics = metricsHelpers.NewMetricsRegistry()
 	})
 
 	It("polls for bindings on an interval", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, false)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
 
 		Eventually(apiClient.called).Should(BeNumerically(">=", 2))
@@ -41,156 +41,134 @@ var _ = Describe("Poller", func() {
 
 	It("calls the api client and stores the result", func() {
 		apiClient.bindings <- response{
-			Results: map[string]struct {
-				Drains []struct {
-					Url         string
-					Credentials struct {
-						Cert string
-						Key  string
-					}
-				}
-				Hostname string
-			}{
-				"app-id-1": {
-					Drains: []struct {
-						Url         string
-						Credentials struct {
-							Cert string
-							Key  string
-						}
-					}{
-						{
-							Url: "drain-1",
-							Credentials: struct {
-								Cert string
-								Key  string
-							}{},
-						},
-						{
-							Url: "drain-2",
-							Credentials: struct {
-								Cert string
-								Key  string
-							}{},
-						},
+			Results: []binding.Binding{
+				{
+					Url:  "drain-1",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
 					},
-					Hostname: "app-hostname",
+				},
+				{
+					Url:  "drain-2",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
+					},
 				},
 			},
 		}
 
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, false)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
 
 		var expected []binding.Binding
 		Eventually(store.bindings).Should(Receive(&expected))
-		Expect(expected).To(ConsistOf(binding.Binding{
-			AppID: "app-id-1",
-			Drains: []binding.Drain{
-				{
-					Url: "drain-1",
-				},
-				{
-					Url: "drain-2",
+		Expect(expected).To(ConsistOf([]binding.Binding{
+			{
+				Url:  "drain-1",
+				Cert: "cert",
+				Key:  "key",
+				Apps: []binding.App{
+					{Hostname: "app-hostname", AppID: "app-id-1"},
 				},
 			},
-			Hostname: "app-hostname",
+			{
+				Url:  "drain-2",
+				Cert: "cert",
+				Key:  "key",
+				Apps: []binding.App{
+					{Hostname: "app-hostname", AppID: "app-id-1"},
+				},
+			},
 		}))
 	})
 
 	It("fetches the next page of bindings and stores the result", func() {
 		apiClient.bindings <- response{
 			NextID: 2,
-			Results: map[string]struct {
-				Drains []struct {
-					Url         string
-					Credentials struct {
-						Cert string
-						Key  string
-					}
-				}
-				Hostname string
-			}{
-				"app-id-1": {
-					Drains: []struct {
-						Url         string
-						Credentials struct {
-							Cert string
-							Key  string
-						}
-					}{
-						{
-							Url: "drain-1",
-						},
-						{
-							Url: "drain-2",
-						},
+			Results: []binding.Binding{
+				{
+					Url:  "drain-1",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
 					},
-					Hostname: "app-hostname",
+				},
+				{
+					Url:  "drain-2",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
+					},
 				},
 			},
 		}
 
 		apiClient.bindings <- response{
-			Results: map[string]struct {
-				Drains []struct {
-					Url         string
-					Credentials struct {
-						Cert string
-						Key  string
-					}
-				}
-				Hostname string
-			}{
-				"app-id-2": {
-					Drains: []struct {
-						Url         string
-						Credentials struct {
-							Cert string
-							Key  string
-						}
-					}{
-						{
-							Url: "drain-3",
-						},
-						{
-							Url: "drain-4",
-						},
+			Results: []binding.Binding{
+				{
+					Url:  "drain-3",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-2"},
 					},
-					Hostname: "app-hostname",
+				},
+				{
+					Url:  "drain-4",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-2"},
+					},
 				},
 			},
 		}
 
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, false)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
 
 		var expected []binding.Binding
 		Eventually(store.bindings).Should(Receive(&expected))
 		Expect(expected).To(ConsistOf(
-			binding.Binding{
-				AppID: "app-id-1",
-				Drains: []binding.Drain{
-					{
-						Url: "drain-1",
-					},
-					{
-						Url: "drain-2",
-					},
-				},
-				Hostname: "app-hostname",
-			},
-			binding.Binding{
-				AppID: "app-id-2",
-				Drains: []binding.Drain{
-					{
-						Url: "drain-3",
-					},
-					{
-						Url: "drain-4",
+			[]binding.Binding{
+				{
+					Url:  "drain-1",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
 					},
 				},
-				Hostname: "app-hostname",
+				{
+					Url:  "drain-2",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
+					},
+				},
+				{
+					Url:  "drain-3",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-2"},
+					},
+				},
+				{
+					Url:  "drain-4",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-2"},
+					},
+				},
 			},
 		))
 
@@ -198,7 +176,7 @@ var _ = Describe("Poller", func() {
 	})
 
 	It("tracks the number of API errors", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, false)
+		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger)
 		go p.Poll()
 
 		apiClient.errors <- errors.New("expected")
@@ -210,172 +188,26 @@ var _ = Describe("Poller", func() {
 
 	It("tracks the number of bindings returned from CAPI", func() {
 		apiClient.bindings <- response{
-			Results: map[string]struct {
-				Drains []struct {
-					Url         string
-					Credentials struct {
-						Cert string
-						Key  string
-					}
-				}
-				Hostname string
-			}{
-				"app-id-1": {},
-				"app-id-2": {},
-			},
-		}
-		binding.NewPoller(apiClient, time.Hour, store, metrics, logger, false)
-
-		Expect(metrics.GetMetric("last_binding_refresh_count", nil).Value()).
-			To(BeNumerically("==", 2))
-	})
-})
-
-var _ = Describe("LegacyPoller", func() {
-	var (
-		apiClient *fakeAPIClient
-		store     *fakeStore
-		metrics   *metricsHelpers.SpyMetricsRegistry
-		logger    = log.New(GinkgoWriter, "", 0)
-	)
-
-	BeforeEach(func() {
-		apiClient = newFakeAPIClient(true)
-		store = newFakeStore()
-		metrics = metricsHelpers.NewMetricsRegistry()
-	})
-
-	It("polls for bindings on an interval", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, false)
-		go p.Poll()
-
-		Eventually(apiClient.called).Should(BeNumerically(">=", 2))
-	})
-
-	It("calls the api client and stores the result", func() {
-		apiClient.legacyBindings <- legacyResponse{
-			Results: map[string]struct {
-				Drains   []string
-				Hostname string
-			}{
-				"app-id-1": {
-					Drains: []string{
-						"drain-1",
-						"drain-2",
-					},
-					Hostname: "app-hostname",
-				},
-			},
-		}
-
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, true)
-		go p.Poll()
-
-		var expected []binding.Binding
-		Eventually(store.bindings).Should(Receive(&expected))
-		Expect(expected).To(ConsistOf(binding.Binding{
-			AppID: "app-id-1",
-			Drains: []binding.Drain{
+			Results: []binding.Binding{
 				{
-					Url: "drain-1",
+					Url:  "drain-1",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-1"},
+					},
 				},
 				{
-					Url: "drain-2",
-				},
-			},
-			Hostname: "app-hostname",
-		}))
-	})
-
-	It("fetches the next page of bindings and stores the result", func() {
-		apiClient.legacyBindings <- legacyResponse{
-			NextID: 2,
-			Results: map[string]struct {
-				Drains   []string
-				Hostname string
-			}{
-				"app-id-1": {
-					Drains: []string{
-						"drain-1",
-						"drain-2",
+					Url:  "drain-2",
+					Cert: "cert",
+					Key:  "key",
+					Apps: []binding.App{
+						{Hostname: "app-hostname", AppID: "app-id-2"},
 					},
-					Hostname: "app-hostname",
 				},
 			},
 		}
-
-		apiClient.legacyBindings <- legacyResponse{
-			Results: map[string]struct {
-				Drains   []string
-				Hostname string
-			}{
-				"app-id-2": {
-					Drains: []string{
-						"drain-3",
-						"drain-4",
-					},
-					Hostname: "app-hostname",
-				},
-			},
-		}
-
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, true)
-		go p.Poll()
-
-		var expected []binding.Binding
-		Eventually(store.bindings).Should(Receive(&expected))
-		Expect(expected).To(ConsistOf(
-			binding.Binding{
-				AppID: "app-id-1",
-				Drains: []binding.Drain{
-					{
-						Url: "drain-1",
-					},
-					{
-						Url: "drain-2",
-					},
-				},
-				Hostname: "app-hostname",
-			},
-			binding.Binding{
-				AppID: "app-id-2",
-				Drains: []binding.Drain{
-					{
-						Url: "drain-3",
-					},
-					{
-						Url: "drain-4",
-					},
-				},
-				Hostname: "app-hostname",
-			},
-		))
-
-		Expect(apiClient.requestedIDs).To(ConsistOf(0, 2))
-	})
-
-	It("tracks the number of API errors", func() {
-		p := binding.NewPoller(apiClient, 10*time.Millisecond, store, metrics, logger, true)
-		go p.Poll()
-
-		apiClient.errors <- errors.New("expected")
-
-		Eventually(func() float64 {
-			return metrics.GetMetric("binding_refresh_error", nil).Value()
-		}).Should(BeNumerically("==", 1))
-	})
-
-	It("tracks the number of bindings returned from CAPI", func() {
-		apiClient.legacyBindings <- legacyResponse{
-			Results: map[string]struct {
-				Drains   []string
-				Hostname string
-			}{
-				"app-id-1": {},
-				"app-id-2": {},
-			},
-		}
-		binding.NewPoller(apiClient, time.Hour, store, metrics, logger, true)
+		binding.NewPoller(apiClient, time.Hour, store, metrics, logger)
 
 		Expect(metrics.GetMetric("last_binding_refresh_count", nil).Value()).
 			To(BeNumerically("==", 2))
@@ -383,20 +215,16 @@ var _ = Describe("LegacyPoller", func() {
 })
 
 type fakeAPIClient struct {
-	numRequests    int64
-	bindings       chan response
-	legacyBindings chan legacyResponse
-	legacy         bool
-	errors         chan error
-	requestedIDs   []int
+	numRequests  int64
+	bindings     chan response
+	errors       chan error
+	requestedIDs []int
 }
 
-func newFakeAPIClient(legacy bool) *fakeAPIClient {
+func newFakeAPIClient() *fakeAPIClient {
 	return &fakeAPIClient{
-		bindings:       make(chan response, 100),
-		legacyBindings: make(chan legacyResponse, 100),
-		errors:         make(chan error, 100),
-		legacy:         legacy,
+		bindings: make(chan response, 100),
+		errors:   make(chan error, 100),
 	}
 }
 
@@ -404,27 +232,18 @@ func (c *fakeAPIClient) Get(nextID int) (*http.Response, error) {
 	atomic.AddInt64(&c.numRequests, 1)
 
 	var binding response
-	var legacyBinding legacyResponse
 	select {
 	case err := <-c.errors:
 		return nil, err
 	case binding = <-c.bindings:
 		c.requestedIDs = append(c.requestedIDs, nextID)
-	case legacyBinding = <-c.legacyBindings:
-		c.requestedIDs = append(c.requestedIDs, nextID)
 	default:
 	}
 
 	var body []byte
-	if c.legacy {
-		b, err := json.Marshal(&legacyBinding)
-		Expect(err).ToNot(HaveOccurred())
-		body = b
-	} else {
-		b, err := json.Marshal(&binding)
-		Expect(err).ToNot(HaveOccurred())
-		body = b
-	}
+	b, err := json.Marshal(&binding)
+	Expect(err).ToNot(HaveOccurred())
+	body = b
 	resp := &http.Response{
 		Body: io.NopCloser(bytes.NewReader(body)),
 	}
@@ -451,17 +270,8 @@ func (c *fakeStore) Set(b []binding.Binding) {
 }
 
 type response struct {
-	Results map[string]struct {
-		Drains []struct {
-			Url         string
-			Credentials struct {
-				Cert string
-				Key  string
-			}
-		}
-		Hostname string
-	}
-	NextID int `json:"next_id"`
+	Results []binding.Binding
+	NextID  int `json:"next_id"`
 }
 
 type legacyResponse struct {

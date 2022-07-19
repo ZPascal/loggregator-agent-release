@@ -49,19 +49,15 @@ func (sbc *SyslogBindingCache) Run() {
 		go func() { sbc.log.Println("PPROF SERVER STOPPED " + sbc.pprofServer.ListenAndServe().Error()) }()
 	}
 	store := binding.NewStore(sbc.metrics)
+	aggregateStore := binding.AggregateStore{AggregateDrains: sbc.config.AggregateDrains}
 
-	var aggregateDrains []binding.Drain
-	for _, ad := range sbc.config.AggregateDrains {
-		aggregateDrains = append(aggregateDrains, binding.Drain{Url: ad})
-	}
-	aggregateStore := binding.AggregateStore{AggregateDrains: aggregateDrains}
-	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log, sbc.config.LegacyAPI)
+	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log)
 
 	go poller.Poll()
 
 	router := mux.NewRouter()
 	router.HandleFunc("/bindings", cache.Handler(store)).Methods(http.MethodGet)
-	router.HandleFunc("/aggregate", cache.Handler(&aggregateStore)).Methods(http.MethodGet)
+	router.HandleFunc("/aggregate", cache.AggregateHandler(&aggregateStore)).Methods(http.MethodGet)
 
 	sbc.startServer(router)
 }
