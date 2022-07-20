@@ -11,22 +11,21 @@ type CacheFetcher interface {
 }
 
 type AggregateDrainFetcher struct {
-	bindings []string
+	bindings []syslog.Binding
 	cf       CacheFetcher
 }
 
 func NewAggregateDrainFetcher(bindings []string, cf CacheFetcher) *AggregateDrainFetcher {
 	drainFetcher := &AggregateDrainFetcher{cf: cf}
-	drainFetcher.bindings = bindings
+	parsedDrains := parseBindings(bindings)
+	drainFetcher.bindings = parsedDrains
 	return drainFetcher
 }
 
 func (a *AggregateDrainFetcher) FetchBindings() ([]syslog.Binding, error) {
 	if len(a.bindings) != 0 {
 		var bindings []syslog.Binding
-		for _, binding := range a.bindings {
-			bindings = append(bindings, syslog.Binding{Drain: syslog.Drain{Url: binding}})
-		}
+		bindings = append(bindings, a.bindings...)
 		return bindings, nil
 	} else if a.cf != nil {
 		aggregate, err := a.cf.GetAggregate()
