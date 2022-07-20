@@ -65,7 +65,6 @@ var _ = Describe("Aggregate Drain Binding Fetcher", func() {
 
 			b, err := fetcher.FetchBindings()
 			Expect(err).ToNot(HaveOccurred())
-
 			Expect(len(b)).To(Equal(0))
 		})
 	})
