@@ -58,17 +58,13 @@ var _ = Describe("SyslogAgent", func() {
 			bindingCache = &fakeBindingCache{
 				bindings: []binding.Binding{
 					{
-						Url:  syslogHTTPS.server.URL,
-						Cert: "cert",
-						Key:  "key",
+						Url: syslogHTTPS.server.URL,
 						Apps: []binding.App{
 							{Hostname: "org.space.name", AppID: "some-id"},
 						},
 					},
 					{
-						Url:  fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
-						Cert: "cert",
-						Key:  "key",
+						Url: fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
 						Apps: []binding.App{
 							{Hostname: "org.space.name", AppID: "some-id-tls"},
 						},
@@ -305,17 +301,13 @@ var _ = Describe("SyslogAgent", func() {
 		It("can be configured so that there's no tags", func() {
 			bindingCache.bindings = []binding.Binding{
 				{
-					Url:  syslogHTTPS.server.URL + "?disable-metadata=true",
-					Cert: "cert",
-					Key:  "key",
+					Url: syslogHTTPS.server.URL + "?disable-metadata=true",
 					Apps: []binding.App{
 						{Hostname: "org.space.name", AppID: "some-id"},
 					},
 				},
 				{
-					Url:  fmt.Sprintf("syslog-tls://localhost:%s?disable-metadata=true", syslogTLS.port()),
-					Cert: "cert",
-					Key:  "key",
+					Url: fmt.Sprintf("syslog-tls://localhost:%s?disable-metadata=true", syslogTLS.port()),
 					Apps: []binding.App{
 						{Hostname: "org.space.name", AppID: "some-id-tls"},
 					},
@@ -339,17 +331,13 @@ var _ = Describe("SyslogAgent", func() {
 		It("can be configured so that there's no tags by default", func() {
 			bindingCache.bindings = []binding.Binding{
 				{
-					Url:  syslogHTTPS.server.URL,
-					Cert: "cert",
-					Key:  "key",
+					Url: syslogHTTPS.server.URL,
 					Apps: []binding.App{
 						{Hostname: "org.space.name", AppID: "some-id"},
 					},
 				},
 				{
-					Url:  fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
-					Cert: "cert",
-					Key:  "key",
+					Url: fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
 					Apps: []binding.App{
 						{Hostname: "org.space.name", AppID: "some-id-tls"},
 					},
@@ -425,7 +413,6 @@ var _ = Describe("SyslogAgent", func() {
 					func(c *tls.Config) error {
 						c.MinVersion = tls.VersionTLS12
 						c.MaxVersion = tls.VersionTLS12
-						c.PreferServerCipherSuites = false
 						// External ciphers not on internal list
 						c.CipherSuites = []uint16{
 							tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -449,7 +436,6 @@ var _ = Describe("SyslogAgent", func() {
 					func(c *tls.Config) error {
 						c.MinVersion = tls.VersionTLS12
 						c.MaxVersion = tls.VersionTLS12
-						c.PreferServerCipherSuites = false
 						// External ciphers not on internal list
 						c.CipherSuites = []uint16{
 							tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
@@ -473,7 +459,6 @@ var _ = Describe("SyslogAgent", func() {
 					func(c *tls.Config) error {
 						c.MinVersion = tls.VersionTLS12
 						c.MaxVersion = tls.VersionTLS12
-						c.PreferServerCipherSuites = false
 						// External ciphers not on internal list
 						c.CipherSuites = []uint16{
 							tls.TLS_RSA_WITH_RC4_128_SHA,
@@ -528,7 +513,6 @@ var _ = Describe("SyslogAgent", func() {
 					func(c *tls.Config) error {
 						c.MinVersion = tls.VersionTLS12
 						c.MaxVersion = tls.VersionTLS12
-						c.PreferServerCipherSuites = false
 						// External ciphers not on internal list
 						c.CipherSuites = []uint16{
 							tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
