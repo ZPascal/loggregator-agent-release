@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -46,6 +47,13 @@ var _ = Describe("SyslogAgent", func() {
 			metronTestCerts       = testhelper.GenerateCerts("loggregatorCA")
 			bindingCacheTestCerts = testhelper.GenerateCerts("bindingCacheCA")
 			syslogServerTestCerts = testhelper.GenerateCerts("syslogCA")
+			drainTestCerts        = testhelper.GenerateCerts("syslogCA")
+			drainTestCertFile     = drainTestCerts.Cert("localhos")
+			drainTestKeyFile      = drainTestCerts.Key("localhos")
+		)
+		var (
+			drainTestCert, _ = ioutil.ReadFile(drainTestCertFile)
+			drainTestKey, _  = ioutil.ReadFile(drainTestKeyFile)
 		)
 
 		BeforeEach(func() {
@@ -54,17 +62,20 @@ var _ = Describe("SyslogAgent", func() {
 
 			aggregateSyslogTLS = newSyslogTLSServer(syslogServerTestCerts, tlsconfig.WithInternalServiceDefaults())
 			aggregateAddr = fmt.Sprintf("syslog-tls://127.0.0.1:%s", aggregateSyslogTLS.port())
-
 			bindingCache = &fakeBindingCache{
 				bindings: []binding.Binding{
 					{
-						Url: syslogHTTPS.server.URL,
+						Url:  syslogHTTPS.server.URL,
+						Cert: "cert",
+						Key:  "Key",
 						Apps: []binding.App{
 							{Hostname: "org.space.name", AppID: "some-id"},
 						},
 					},
 					{
-						Url: fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
+						Url:  fmt.Sprintf("syslog-tls://localhost:%s", syslogTLS.port()),
+						Cert: string(drainTestCert),
+						Key:  string(drainTestKey),
 						Apps: []binding.App{
 							{Hostname: "org.space.name", AppID: "some-id-tls"},
 						},
@@ -269,7 +280,7 @@ var _ = Describe("SyslogAgent", func() {
 			Consistently(syslogHTTPS.receivedMessages, 3).ShouldNot(Receive())
 		})
 
-		It("should create connections to aggregate drains", func() {
+		FIt("should create connections to aggregate drains", func() {
 			cancel := setupTestAgent()
 			defer cancel()
 
