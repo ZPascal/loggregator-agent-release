@@ -48,8 +48,8 @@ var _ = Describe("SyslogAgent", func() {
 			bindingCacheTestCerts = testhelper.GenerateCerts("bindingCacheCA")
 			syslogServerTestCerts = testhelper.GenerateCerts("syslogCA")
 			drainTestCerts        = testhelper.GenerateCerts("syslogCA")
-			drainTestCertFile     = drainTestCerts.Cert("localhos")
-			drainTestKeyFile      = drainTestCerts.Key("localhos")
+			drainTestCertFile     = drainTestCerts.Cert("localhost")
+			drainTestKeyFile      = drainTestCerts.Key("localhost")
 		)
 		var (
 			drainTestCert, _ = ioutil.ReadFile(drainTestCertFile)
@@ -65,9 +65,7 @@ var _ = Describe("SyslogAgent", func() {
 			bindingCache = &fakeBindingCache{
 				bindings: []binding.Binding{
 					{
-						Url:  syslogHTTPS.server.URL,
-						Cert: "cert",
-						Key:  "Key",
+						Url: syslogHTTPS.server.URL,
 						Apps: []binding.App{
 							{Hostname: "org.space.name", AppID: "some-id"},
 						},
