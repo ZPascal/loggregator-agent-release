@@ -3,6 +3,7 @@ package syslog
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"golang.org/x/net/context"
 
@@ -115,6 +116,9 @@ func (w *SyslogConnector) Connect(ctx context.Context, b Binding) (egress.Writer
 
 	writer, err := w.writerFactory.NewWriter(urlBinding)
 	if err != nil {
+		if errString := err.Error(); strings.Contains(err.Error(), "syslogTLS:") {
+			w.emitLoggregatorErrorLog(b.AppId, errString)
+		}
 		return nil, err
 	}
 
