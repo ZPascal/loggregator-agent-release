@@ -50,8 +50,7 @@ var _ = Describe("SyslogAgent", func() {
 			drainTestCerts        = testhelper.GenerateCerts("syslogCA")
 			drainTestCertFile     = drainTestCerts.Cert("localhost")
 			drainTestKeyFile      = drainTestCerts.Key("localhost")
-		)
-		var (
+
 			drainTestCert, _ = ioutil.ReadFile(drainTestCertFile)
 			drainTestKey, _  = ioutil.ReadFile(drainTestKeyFile)
 		)
