@@ -64,17 +64,19 @@ func (f WriterFactory) NewWriter(
 			converter,
 		), nil
 	case "syslog-tls":
+		tlsClonedConfig := tlsConfig.Clone()
 		if len(urlBinding.Certificate) > 0 && len(urlBinding.PrivateKey) > 0 {
 			credentials, err := tls.X509KeyPair(urlBinding.Certificate, urlBinding.PrivateKey)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to load certificate: %s", err)
 			}
-			tlsConfig.Certificates = []tls.Certificate{credentials}
+
+			tlsClonedConfig.Certificates = []tls.Certificate{credentials}
 		}
 		w, err = NewTLSWriter(
 			urlBinding,
 			f.netConf,
-			tlsConfig,
+			tlsClonedConfig,
 			f.egressMetric,
 			converter,
 		), nil
