@@ -212,6 +212,53 @@ var _ = Describe("Poller", func() {
 		Expect(metrics.GetMetric("last_binding_refresh_count", nil).Value()).
 			To(BeNumerically("==", 2))
 	})
+
+	It("tracks the isolated CalculateBindingsCount call", func() {
+		noBinding := []binding.Binding{}
+		singleBinding := []binding.Binding{
+			{
+				Url:  "drain-1",
+				Cert: "cert",
+				Key:  "key",
+				Apps: []binding.App{
+					{Hostname: "app-hostname", AppID: "app-id-1"},
+				},
+			},
+			{
+				Url:  "drain-2",
+				Cert: "cert",
+				Key:  "key",
+				Apps: []binding.App{
+					{Hostname: "app-hostname", AppID: "app-id-1"},
+				},
+			},
+		}
+		multipleBindings := []binding.Binding{
+			{
+				Url:  "drain-1",
+				Cert: "cert",
+				Key:  "key",
+				Apps: []binding.App{
+					{Hostname: "app-hostname", AppID: "app-id-1"},
+				},
+			},
+			{
+				Url:  "drain-2",
+				Cert: "cert",
+				Key:  "key",
+				Apps: []binding.App{
+					{Hostname: "app-hostname", AppID: "app-id-2"},
+				},
+			},
+		}
+		Expect(binding.CalculateBindingCount(noBinding)).
+			To(BeNumerically("==", 0))
+		Expect(binding.CalculateBindingCount(singleBinding)).
+			To(BeNumerically("==", 1))
+		Expect(binding.CalculateBindingCount(multipleBindings)).
+			To(BeNumerically("==", 2))
+	})
+
 })
 
 type fakeAPIClient struct {

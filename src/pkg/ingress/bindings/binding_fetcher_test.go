@@ -51,22 +51,31 @@ var _ = Describe("BindingFetcher", func() {
 			},
 			{
 				Url:  "syslog://v3.zzz-not-included.url",
-				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "blah"}},
+				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "testAppID"}},
 			},
 			{
 				Url:  "syslog://v3.other.url",
-				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "blah"}},
+				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "testAppID"}},
 			}, {
 				Url:  "syslog://v3.zzz-not-included-again.url",
-				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "blah"}},
+				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "testAppID"}},
 			}, {
 				Url:  "https://v3.other.url",
-				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "blah"}},
+				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "testAppID"}},
 			}, {
 				Url:  "syslog://v3.other-included.url",
-				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "blah"}},
+				Apps: []binding.App{{Hostname: "org.space.logspinner", AppID: "testAppID"}},
 			},
 		}
+	})
+
+	It("remodels the bindings into molds without filtering them", func() {
+		bindings, err := getter.Get()
+		molds := fetcher.RemodelBindings(bindings)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(molds).To(HaveLen(2))
+		Expect(molds["testAppID"].Drains).To(HaveLen(5))
+		Expect(molds["9be15160-4845-4f05-b089-40e827ba61f1"].Drains).To(HaveLen(5))
 	})
 
 	It("returns the max number of v3 bindings by app id", func() {
@@ -75,7 +84,7 @@ var _ = Describe("BindingFetcher", func() {
 		Expect(bindings).To(HaveLen(6))
 
 		appID := "9be15160-4845-4f05-b089-40e827ba61f1"
-		otherAppID := "blah"
+		otherAppID := "testAppID"
 		Expect(bindings).To(ConsistOf([]syslog.Binding{
 			{
 				AppId:    appID,

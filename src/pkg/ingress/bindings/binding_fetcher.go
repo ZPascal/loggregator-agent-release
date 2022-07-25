@@ -84,29 +84,33 @@ func (b ByUrl) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b ByUrl) Less(i, j int) bool { return b[i].Url < b[j].Url }
 
 type mold struct {
-	drains   []syslog.Drain
+	Drains   []syslog.Drain
 	hostname string
 }
 
-func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int) []syslog.Binding {
-	var bindings []syslog.Binding
-
+func (f *BindingFetcher) RemodelBindings(bs []binding.Binding) map[string]mold {
 	remodel := make(map[string]mold)
 	for _, b := range bs {
 		for _, a := range b.Apps {
 			if val, ok := remodel[a.AppID]; ok {
 				drain := syslog.Drain{Url: b.Url, Credentials: syslog.Credentials{Cert: b.Cert, Key: b.Key}}
-				remodel[a.AppID] = mold{drains: append(val.drains, drain), hostname: a.Hostname}
+				remodel[a.AppID] = mold{Drains: append(val.Drains, drain), hostname: a.Hostname}
 			} else {
 				drain := syslog.Drain{Url: b.Url, Credentials: syslog.Credentials{Cert: b.Cert, Key: b.Key}}
-				remodel[a.AppID] = mold{drains: []syslog.Drain{drain}, hostname: a.Hostname}
+				remodel[a.AppID] = mold{Drains: []syslog.Drain{drain}, hostname: a.Hostname}
 			}
 		}
 	}
+	return remodel
+}
 
+func (f *BindingFetcher) toSyslogBindings(bs []binding.Binding, perAppLimit int) []syslog.Binding {
+	var bindings []syslog.Binding
+
+	remodel := f.RemodelBindings(bs)
 	for appID, b := range remodel {
 
-		drains := b.drains
+		drains := b.Drains
 		sort.Sort(ByUrl(drains))
 
 		if perAppLimit < len(drains) {
