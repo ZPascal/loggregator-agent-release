@@ -48,10 +48,10 @@ var _ = Describe("SyslogAgent", func() {
 			bindingCacheTestCerts = testhelper.GenerateCerts("bindingCacheCA")
 			syslogServerTestCerts = testhelper.GenerateCerts("syslogCA")
 			drainTestCerts        = testhelper.GenerateCerts("syslogCA")
-			drainTestCertFile     = drainTestCerts.Cert("localhos")
-			drainTestKeyFile      = drainTestCerts.Key("localhos")
-		)
-		var (
+
+			drainTestCertFile = drainTestCerts.Cert("localhost")
+			drainTestKeyFile  = drainTestCerts.Key("localhost")
+
 			drainTestCert, _ = ioutil.ReadFile(drainTestCertFile)
 			drainTestKey, _  = ioutil.ReadFile(drainTestKeyFile)
 		)
@@ -65,9 +65,7 @@ var _ = Describe("SyslogAgent", func() {
 			bindingCache = &fakeBindingCache{
 				bindings: []binding.Binding{
 					{
-						Url:  syslogHTTPS.server.URL,
-						Cert: "cert",
-						Key:  "Key",
+						Url: syslogHTTPS.server.URL,
 						Apps: []binding.App{
 							{Hostname: "org.space.name", AppID: "some-id"},
 						},
@@ -490,7 +488,6 @@ var _ = Describe("SyslogAgent", func() {
 					func(c *tls.Config) error {
 						c.MinVersion = tls.VersionTLS12
 						c.MaxVersion = tls.VersionTLS12
-						c.PreferServerCipherSuites = false
 						// External ciphers not on internal list
 						c.CipherSuites = []uint16{
 							tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
