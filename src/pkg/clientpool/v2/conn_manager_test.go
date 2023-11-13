@@ -9,7 +9,7 @@ import (
 	"code.cloudfoundry.org/go-loggregator/v9/rpc/loggregator_v2"
 	clientpool "code.cloudfoundry.org/loggregator-agent-release/src/pkg/clientpool/v2"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -93,7 +93,7 @@ var _ = Describe("ConnManager", func() {
 		It("recycles the connections after max writes", func() {
 			e := &loggregator_v2.Envelope{SourceId: "some-uuid"}
 			f := func() int {
-				connManager.Write([]*loggregator_v2.Envelope{e})
+				_ = connManager.Write([]*loggregator_v2.Envelope{e})
 				return connector.called()
 			}
 			Eventually(f).Should(Equal(2))

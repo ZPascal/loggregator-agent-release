@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec
+	"sync"
+	"time"
 
 	metrics "code.cloudfoundry.org/go-metric-registry"
 	v1 "code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/v1"
@@ -33,6 +35,10 @@ type UDPForwarder struct {
 	job          string
 	index        string
 	ip           string
+
+	nr *ingress.NetworkReader
+
+	mu sync.Mutex
 }
 
 func NewUDPForwarder(cfg Config, l *log.Logger, m Metrics) *UDPForwarder {
@@ -53,8 +59,14 @@ func NewUDPForwarder(cfg Config, l *log.Logger, m Metrics) *UDPForwarder {
 func (u *UDPForwarder) Run() {
 	if u.debugMetrics {
 		u.metrics.RegisterDebugMetrics()
-		u.pprofServer = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", u.pprofPort), Handler: http.DefaultServeMux}
-		go func() { log.Println("PPROF SERVER STOPPED " + u.pprofServer.ListenAndServe().Error()) }()
+		u.mu.Lock()
+		u.pprofServer = &http.Server{
+			Addr:              fmt.Sprintf("127.0.0.1:%d", u.pprofPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: 2 * time.Second,
+		}
+		u.mu.Unlock()
+		go func() { u.log.Println("PPROF SERVER STOPPED " + u.pprofServer.ListenAndServe().Error()) }()
 	}
 	tlsConfig, err := loggregator.NewIngressTLSConfig(
 		u.grpc.CAFile,
@@ -83,21 +95,30 @@ func (u *UDPForwarder) Run() {
 	)
 
 	dropsondeUnmarshaller := ingress.NewUnMarshaller(w)
-	networkReader, err := ingress.NewNetworkReader(
+	u.mu.Lock()
+	u.nr, err = ingress.NewNetworkReader(
 		fmt.Sprintf("127.0.0.1:%d", u.udpPort),
 		dropsondeUnmarshaller,
 		u.metrics,
 	)
+	u.mu.Unlock()
 	if err != nil {
 		u.log.Fatalf("Failed to listen on 127.0.0.1:%d: %s", u.udpPort, err)
 	}
 
-	go networkReader.StartReading()
-	networkReader.StartWriting()
+	go u.nr.StartReading()
+	u.nr.StartWriting()
 }
 func (u *UDPForwarder) Stop() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
 	if u.pprofServer != nil {
-		u.pprofServer.Close()
+		u.pprofServer.Close() //nolint:errcheck
+	}
+
+	if u.nr != nil {
+		u.nr.Stop()
 	}
 }
 

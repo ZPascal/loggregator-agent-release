@@ -8,7 +8,7 @@ import (
 	"code.cloudfoundry.org/go-loggregator/v9/rpc/loggregator_v2"
 	v2 "code.cloudfoundry.org/loggregator-agent-release/src/pkg/clientpool/v2"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -53,7 +53,8 @@ var _ = Describe("GRPCConnector", func() {
 		})
 
 		It("fetches a client with the given address", func() {
-			connector.Connect()
+			_, _, err := connector.Connect()
+			Expect(err).To(BeNil())
 			Expect(fetcher.Addr).To(Equal("10.10.10.1:99"))
 		})
 
@@ -82,7 +83,8 @@ var _ = Describe("GRPCConnector", func() {
 			}
 			connector := v2.MakeGRPCConnector(fetcher, balancers)
 
-			connector.Connect()
+			_, _, err := connector.Connect()
+			Expect(err).To(BeNil())
 			Expect(fetcher.Addr).To(Equal("1.1.1.1:99"))
 		})
 	})

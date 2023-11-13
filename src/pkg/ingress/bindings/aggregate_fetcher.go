@@ -1,7 +1,7 @@
 package bindings
 
 import (
-	"net/url"
+	"errors"
 
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/binding"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
@@ -9,6 +9,7 @@ import (
 
 type CacheFetcher interface {
 	GetAggregate() ([]binding.Binding, error)
+	GetLegacyAggregate() ([]binding.LegacyBinding, error)
 }
 
 type AggregateDrainFetcher struct {
@@ -18,7 +19,7 @@ type AggregateDrainFetcher struct {
 
 func NewAggregateDrainFetcher(bindings []string, cf CacheFetcher) *AggregateDrainFetcher {
 	drainFetcher := &AggregateDrainFetcher{cf: cf}
-	parsedDrains := parseBindings(bindings)
+	parsedDrains := constructLegacyBindings(bindings)
 	drainFetcher.bindings = parsedDrains
 	return drainFetcher
 }
@@ -31,11 +32,25 @@ func (a *AggregateDrainFetcher) FetchBindings() ([]syslog.Binding, error) {
 	} else if a.cf != nil {
 		aggregate, err := a.cf.GetAggregate()
 		if err != nil {
-			return []syslog.Binding{}, err
+			return a.FetchBindingsLegacyFallback()
 		}
 		syslogBindings := []syslog.Binding{}
 		for _, i := range aggregate {
-			syslogBindings = append(syslogBindings, parseBindings(i.Drains)...)
+			if i.Url == "" {
+				continue
+			}
+			b := syslog.Binding{
+				AppId: "",
+				Drain: syslog.Drain{Url: i.Url},
+			}
+			if len(i.Credentials) > 0 {
+				b.Drain.Credentials = syslog.Credentials{
+					CA:   i.Credentials[0].CA,
+					Cert: i.Credentials[0].Cert,
+					Key:  i.Credentials[0].Key,
+				}
+			}
+			syslogBindings = append(syslogBindings, b)
 		}
 		return syslogBindings, nil
 	} else {
@@ -43,24 +58,30 @@ func (a *AggregateDrainFetcher) FetchBindings() ([]syslog.Binding, error) {
 	}
 }
 
-func parseBindings(urls []string) []syslog.Binding {
+func (a *AggregateDrainFetcher) FetchBindingsLegacyFallback() ([]syslog.Binding, error) {
+	aggregateLegacy, err := a.cf.GetLegacyAggregate()
+	if err != nil {
+		return []syslog.Binding{}, err
+	}
 	syslogBindings := []syslog.Binding{}
-	for _, b := range urls {
-		if b == "" {
-			continue
+	for _, i := range aggregateLegacy {
+		if i.V2Available {
+			return nil, errors.New("v2 is available")
 		}
-		bindingType := syslog.BINDING_TYPE_LOG
-		urlParsed, err := url.Parse(b)
-		if err != nil {
+		syslogBindings = append(syslogBindings, constructLegacyBindings(i.Drains)...)
+	}
+	return syslogBindings, nil
+}
+
+func constructLegacyBindings(urls []string) []syslog.Binding {
+	syslogBindings := []syslog.Binding{}
+	for _, u := range urls {
+		if u == "" {
 			continue
-		}
-		if urlParsed.Query().Get("include-metrics-deprecated") != "" {
-			bindingType = syslog.BINDING_TYPE_AGGREGATE
 		}
 		binding := syslog.Binding{
 			AppId: "",
-			Drain: b,
-			Type:  bindingType,
+			Drain: syslog.Drain{Url: u},
 		}
 		syslogBindings = append(syslogBindings, binding)
 	}

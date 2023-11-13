@@ -4,10 +4,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec
 	"sync"
+	"time"
 
 	metrics "code.cloudfoundry.org/go-metric-registry"
 	"code.cloudfoundry.org/tlsconfig"
@@ -16,7 +16,7 @@ import (
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/cache"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/ingress/api"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/plumbing"
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 )
 
 type SyslogBindingCache struct {
@@ -45,18 +45,25 @@ func NewSyslogBindingCache(config Config, metrics Metrics, log *log.Logger) *Sys
 func (sbc *SyslogBindingCache) Run() {
 	if sbc.config.MetricsServer.DebugMetrics {
 		sbc.metrics.RegisterDebugMetrics()
-		sbc.pprofServer = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", sbc.config.MetricsServer.PprofPort), Handler: http.DefaultServeMux}
+		sbc.pprofServer = &http.Server{
+			Addr:              fmt.Sprintf("127.0.0.1:%d", sbc.config.MetricsServer.PprofPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: 2 * time.Second,
+		}
 		go func() { sbc.log.Println("PPROF SERVER STOPPED " + sbc.pprofServer.ListenAndServe().Error()) }()
 	}
 	store := binding.NewStore(sbc.metrics)
-	aggregateStore := binding.AggregateStore{AggregateDrains: sbc.config.AggregateDrains}
-	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, sbc.metrics, sbc.log)
+	legacyStore := binding.NewLegacyStore()
+	aggregateStore := binding.NewAggregateStore(sbc.config.AggregateDrainsFile)
+	poller := binding.NewPoller(sbc.apiClient(), sbc.config.APIPollingInterval, store, legacyStore, sbc.metrics, sbc.log)
 
 	go poller.Poll()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/bindings", cache.Handler(store)).Methods(http.MethodGet)
-	router.HandleFunc("/aggregate", cache.Handler(&aggregateStore)).Methods(http.MethodGet)
+	router := chi.NewRouter()
+	router.Get("/bindings", cache.LegacyHandler(legacyStore))
+	router.Get("/v2/bindings", cache.Handler(store))
+	router.Get("/aggregate", cache.LegacyAggregateHandler(aggregateStore))
+	router.Get("/v2/aggregate", cache.AggregateHandler(aggregateStore))
 
 	sbc.startServer(router)
 }
@@ -77,6 +84,7 @@ func (sbc *SyslogBindingCache) apiClient() api.Client {
 		sbc.config.APIKeyFile,
 		sbc.config.APICAFile,
 		sbc.config.APICommonName,
+		sbc.config.APIDisableKeepAlives,
 	)
 
 	return api.Client{
@@ -86,19 +94,20 @@ func (sbc *SyslogBindingCache) apiClient() api.Client {
 	}
 }
 
-func (sbc *SyslogBindingCache) startServer(router *mux.Router) {
+func (sbc *SyslogBindingCache) startServer(router chi.Router) {
 	listenAddr := fmt.Sprintf(":%d", sbc.config.CachePort)
-	lis, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		sbc.log.Panicf("error creating listener: %s", err)
-	}
 	sbc.mu.Lock()
 	sbc.server = &http.Server{
-		Handler:   router,
-		TLSConfig: sbc.tlsConfig(),
+		Addr:              listenAddr,
+		Handler:           router,
+		TLSConfig:         sbc.tlsConfig(),
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 	sbc.mu.Unlock()
-	sbc.server.ServeTLS(lis, "", "")
+	err := sbc.server.ListenAndServeTLS("", "")
+	if err != http.ErrServerClosed {
+		sbc.log.Panicf("error creating listener: %s", err)
+	}
 }
 
 func (sbc *SyslogBindingCache) tlsConfig() *tls.Config {

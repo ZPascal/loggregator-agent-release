@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec
 	"os"
 	"time"
 
@@ -35,6 +35,7 @@ type SyslogAgent struct {
 	debugMetrics        bool
 	bindingManager      BindingManager
 	grpc                GRPC
+	v2Srv               *v2.Server
 	log                 *log.Logger
 	bindingsPerAppLimit int
 }
@@ -101,13 +102,15 @@ func NewSyslogAgent(
 			cfg.Cache.KeyFile,
 			cfg.Cache.CAFile,
 			cfg.Cache.CommonName,
+			false,
 		)
 
 		cacheClient = cache.NewClient(cfg.Cache.URL, tlsClient)
 		cupsFetcher = bindings.NewFilteredBindingFetcher(
 			&cfg.Cache.Blacklist,
-			bindings.NewBindingFetcher(cfg.BindingsPerAppLimit, cacheClient, m),
+			bindings.NewBindingFetcher(cfg.BindingsPerAppLimit, cacheClient, m, l),
 			m,
+			cfg.WarnOnInvalidDrains,
 			l,
 		)
 		cupsFetcher = bindings.NewDrainParamParser(cupsFetcher, cfg.DefaultDrainMetadata)
@@ -165,7 +168,6 @@ func drainTLSConfig(cfg Config) (*tls.Config, *tls.Config) {
 			func(c *tls.Config) error {
 				c.MinVersion = tls.VersionTLS12
 				c.MaxVersion = tls.VersionTLS12
-				c.PreferServerCipherSuites = false
 				c.CipherSuites = *cipherSuites
 				return nil
 			},
@@ -178,8 +180,8 @@ func drainTLSConfig(cfg Config) (*tls.Config, *tls.Config) {
 
 	}
 
-	internalTlsConfig.InsecureSkipVerify = cfg.DrainSkipCertVerify
-	externalTlsConfig.InsecureSkipVerify = cfg.DrainSkipCertVerify
+	internalTlsConfig.InsecureSkipVerify = cfg.DrainSkipCertVerify //nolint:gosec
+	externalTlsConfig.InsecureSkipVerify = cfg.DrainSkipCertVerify //nolint:gosec
 
 	return internalTlsConfig, externalTlsConfig
 }
@@ -209,7 +211,11 @@ func trustedCertPool(trustedCAFile string) *x509.CertPool {
 func (s *SyslogAgent) Run() {
 	if s.debugMetrics {
 		s.metrics.RegisterDebugMetrics()
-		s.pprofServer = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", s.pprofPort), Handler: http.DefaultServeMux}
+		s.pprofServer = &http.Server{
+			Addr:              fmt.Sprintf("127.0.0.1:%d", s.pprofPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: 2 * time.Second,
+		}
 		go func() { log.Println("PPROF SERVER STOPPED " + s.pprofServer.ListenAndServe().Error()) }()
 	}
 	ingressDropped := s.metrics.NewCounter(
@@ -256,17 +262,18 @@ func (s *SyslogAgent) Run() {
 	)
 
 	rx := v2.NewReceiver(diode, im, omm)
-	srv := v2.NewServer(
+	s.v2Srv = v2.NewServer(
 		fmt.Sprintf("127.0.0.1:%d", s.grpc.Port),
 		rx,
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(10*1024*1024),
 	)
-	srv.Start()
+	s.v2Srv.Start()
 }
 
 func (s *SyslogAgent) Stop() {
 	if s.pprofServer != nil {
 		s.pprofServer.Close()
 	}
+	s.v2Srv.Stop()
 }

@@ -26,12 +26,13 @@ type metricsClient interface {
 type FilteredBindingFetcher struct {
 	ipChecker         IPChecker
 	br                binding.Fetcher
+	warn              bool
 	logger            *log.Logger
 	invalidDrains     metrics.Gauge
 	blacklistedDrains metrics.Gauge
 }
 
-func NewFilteredBindingFetcher(c IPChecker, b binding.Fetcher, m metricsClient, lc *log.Logger) *FilteredBindingFetcher {
+func NewFilteredBindingFetcher(c IPChecker, b binding.Fetcher, m metricsClient, warn bool, lc *log.Logger) *FilteredBindingFetcher {
 	opt := metrics.WithMetricLabels(map[string]string{"unit": "total"})
 
 	invalidDrains := m.NewGauge(
@@ -44,10 +45,10 @@ func NewFilteredBindingFetcher(c IPChecker, b binding.Fetcher, m metricsClient, 
 		"Count of blacklisted drains encountered in last binding fetch.",
 		opt,
 	)
-
 	return &FilteredBindingFetcher{
 		ipChecker:         c,
 		br:                b,
+		warn:              warn,
 		logger:            lc,
 		invalidDrains:     invalidDrains,
 		blacklistedDrains: blacklistedDrains,
@@ -68,24 +69,32 @@ func (f *FilteredBindingFetcher) FetchBindings() ([]syslog.Binding, error) {
 	var invalidDrains float64
 	var blacklistedDrains float64
 	for _, b := range sourceBindings {
-		u, err := url.Parse(b.Drain)
+		u, err := url.Parse(b.Drain.Url)
 		if err != nil {
 			invalidDrains += 1
+			f.printWarning("Cannot parse syslog drain url for application %s", b.AppId)
 			continue
 		}
 
+		anonymousUrl := u
+		anonymousUrl.User = nil
+		anonymousUrl.RawQuery = ""
+
 		if invalidScheme(u.Scheme) {
+			f.printWarning("Invalid scheme %s in syslog drain url %s for application %s", u.Scheme, anonymousUrl.String(), b.AppId)
 			continue
 		}
 
 		if len(u.Host) == 0 {
 			invalidDrains += 1
+			f.printWarning("No hostname found in syslog drain url %s for application %s", anonymousUrl.String(), b.AppId)
 			continue
 		}
 
 		ip, err := f.ipChecker.ResolveAddr(u.Host)
 		if err != nil {
 			invalidDrains += 1
+			f.printWarning("Cannot resolve ip address for syslog drain with url %s for application %s", anonymousUrl.String(), b.AppId)
 			continue
 		}
 
@@ -93,6 +102,7 @@ func (f *FilteredBindingFetcher) FetchBindings() ([]syslog.Binding, error) {
 		if err != nil {
 			invalidDrains += 1
 			blacklistedDrains += 1
+			f.printWarning("Resolved ip address for syslog drain with url %s for application %s is blacklisted", anonymousUrl.String(), b.AppId)
 			continue
 		}
 
@@ -102,6 +112,12 @@ func (f *FilteredBindingFetcher) FetchBindings() ([]syslog.Binding, error) {
 	f.blacklistedDrains.Set(blacklistedDrains)
 	f.invalidDrains.Set(invalidDrains)
 	return newBindings, nil
+}
+
+func (f FilteredBindingFetcher) printWarning(format string, v ...any) {
+	if f.warn {
+		f.logger.Printf(format, v...)
+	}
 }
 
 func invalidScheme(scheme string) bool {

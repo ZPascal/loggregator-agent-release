@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/v9/rpc/loggregator_v2"
@@ -80,7 +80,11 @@ func NewV2App(
 func (a *AppV2) Start() {
 	if a.config.MetricsServer.DebugMetrics {
 		a.metricClient.RegisterDebugMetrics()
-		a.pprofServer = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", a.config.MetricsServer.PprofPort), Handler: http.DefaultServeMux}
+		a.pprofServer = &http.Server{
+			Addr:              fmt.Sprintf("127.0.0.1:%d", a.config.MetricsServer.PprofPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: 2 * time.Second,
+		}
 		go func() { log.Println("PPROF SERVER STOPPED " + a.pprofServer.ListenAndServe().Error()) }()
 	}
 
@@ -202,7 +206,7 @@ func (a *AppV2) initializePool() *clientpoolv2.ClientPool {
 	for i := 0; i < 5; i++ {
 		connManagers = append(connManagers, clientpoolv2.NewConnManager(
 			connector,
-			100000+rand.Int63n(1000),
+			100000+rand.Int63n(1000), //nolint:gosec
 			time.Second,
 		))
 	}

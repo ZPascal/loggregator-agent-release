@@ -40,6 +40,7 @@ type Config struct {
 	DrainTrustedCAFile   string        `env:"DRAIN_TRUSTED_CA_FILE,  report"`
 	DefaultDrainMetadata bool          `env:"DEFAULT_DRAIN_METADATA, report"`
 	IdleDrainTimeout     time.Duration `env:"IDLE_DRAIN_TIMEOUT, report"`
+	WarnOnInvalidDrains  bool          `env:"WARN_ON_INVALID_DRAINS,    report"`
 
 	GRPC          GRPC
 	Cache         Cache
@@ -70,7 +71,7 @@ func LoadConfig() Config {
 		panic(fmt.Sprintf("Failed to load config from environment: %s", err))
 	}
 
-	envstruct.WriteReport(&cfg)
+	envstruct.WriteReport(&cfg) //nolint:errcheck
 
 	return cfg
 }

@@ -9,10 +9,11 @@ import (
 	"time"
 
 	metrics "code.cloudfoundry.org/go-metric-registry"
+	"code.cloudfoundry.org/tlsconfig"
 
 	"net/http"
 
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec
 
 	gendiodes "code.cloudfoundry.org/go-diodes"
 	"code.cloudfoundry.org/go-loggregator/v9"
@@ -22,6 +23,7 @@ import (
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
 	egress_v2 "code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/v2"
 	v2 "code.cloudfoundry.org/loggregator-agent-release/src/pkg/ingress/v2"
+	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/otelcolclient"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/plumbing"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/timeoutwaitgroup"
 	"google.golang.org/grpc"
@@ -30,14 +32,15 @@ import (
 
 // ForwarderAgent manages starting the forwarder agent service.
 type ForwarderAgent struct {
-	pprofPort          uint16
-	pprofServer        *http.Server
-	m                  Metrics
-	grpc               GRPC
-	downstreamPortsCfg string
-	log                *log.Logger
-	tags               map[string]string
-	debugMetrics       bool
+	pprofPort             uint16
+	pprofServer           *http.Server
+	m                     Metrics
+	grpc                  GRPC
+	v2srv                 *v2.Server
+	downstreamFilePattern string
+	log                   *log.Logger
+	tags                  map[string]string
+	debugMetrics          bool
 }
 
 type Metrics interface {
@@ -61,20 +64,24 @@ func NewForwarderAgent(
 	log *log.Logger,
 ) *ForwarderAgent {
 	return &ForwarderAgent{
-		pprofPort:          cfg.MetricsServer.PprofPort,
-		grpc:               cfg.GRPC,
-		m:                  m,
-		downstreamPortsCfg: cfg.DownstreamIngressPortCfg,
-		log:                log,
-		tags:               cfg.Tags,
-		debugMetrics:       cfg.MetricsServer.DebugMetrics,
+		pprofPort:             cfg.MetricsServer.PprofPort,
+		grpc:                  cfg.GRPC,
+		m:                     m,
+		downstreamFilePattern: cfg.DownstreamIngressPortCfg,
+		log:                   log,
+		tags:                  cfg.Tags,
+		debugMetrics:          cfg.MetricsServer.DebugMetrics,
 	}
 }
 
 func (s *ForwarderAgent) Run() {
 	if s.debugMetrics {
 		s.m.RegisterDebugMetrics()
-		s.pprofServer = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", s.pprofPort), Handler: http.DefaultServeMux}
+		s.pprofServer = &http.Server{
+			Addr:              fmt.Sprintf("127.0.0.1:%d", s.pprofPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: 2 * time.Second,
+		}
 		go func() { s.log.Println("PPROF SERVER STOPPED " + s.pprofServer.ListenAndServe().Error()) }()
 	}
 	ingressDropped := s.m.NewCounter(
@@ -86,17 +93,17 @@ func (s *ForwarderAgent) Run() {
 		ingressDropped.Add(float64(missed))
 	}))
 
-	downstreamAddrs := getDownstreamAddresses(s.downstreamPortsCfg, s.log)
-	clients := ingressClients(downstreamAddrs, s.grpc, s.log)
+	dests := downstreamDestinations(s.downstreamFilePattern, s.log)
+	writers := downstreamWriters(dests, s.grpc, s.m, s.log)
 	tagger := egress_v2.NewTagger(s.tags)
 	ew := egress_v2.NewEnvelopeWriter(
-		multiWriter{writers: clients},
+		multiWriter{writers: writers},
 		egress_v2.NewCounterAggregator(tagger.TagEnvelope),
 	)
 	go func() {
 		for {
 			e := diode.Next()
-			ew.Write(e)
+			ew.Write(e) //nolint:errcheck
 		}
 	}()
 
@@ -125,19 +132,20 @@ func (s *ForwarderAgent) Run() {
 	)
 	rx := v2.NewReceiver(diode, im, omm)
 
-	srv := v2.NewServer(
+	s.v2srv = v2.NewServer(
 		fmt.Sprintf("127.0.0.1:%d", s.grpc.Port),
 		rx,
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(10*1024*1024),
 	)
-	srv.Start()
+	s.v2srv.Start()
 }
 
 func (s *ForwarderAgent) Stop() {
 	if s.pprofServer != nil {
 		s.pprofServer.Close()
 	}
+	s.v2srv.Stop()
 }
 
 type clientWriter struct {
@@ -159,73 +167,130 @@ type multiWriter struct {
 
 func (mw multiWriter) Write(e *loggregator_v2.Envelope) error {
 	for _, w := range mw.writers {
-		w.Write(e)
+		w.Write(e) //nolint:errcheck
 	}
 	return nil
 }
 
-type portConfig struct {
-	Ingress string `yaml:"ingress"`
+type destination struct {
+	Ingress  string `yaml:"ingress"`
+	Protocol string `yaml:"protocol"`
 }
 
-func getDownstreamAddresses(glob string, l *log.Logger) []string {
-	files, err := filepath.Glob(glob)
+func downstreamDestinations(pattern string, l *log.Logger) []destination {
+	files, err := filepath.Glob(pattern)
 	if err != nil {
 		l.Fatal("Unable to read downstream port location")
 	}
 
-	var addrs []string
+	var dests []destination
 	for _, f := range files {
 		yamlFile, err := os.ReadFile(f)
 		if err != nil {
 			l.Fatalf("cannot read file: %s", err)
 		}
 
-		var c portConfig
-		err = yaml.Unmarshal(yamlFile, &c)
+		var d destination
+		err = yaml.Unmarshal(yamlFile, &d)
 		if err != nil {
 			l.Fatalf("Unmarshal: %v", err)
 		}
 
-		addrs = append(addrs, fmt.Sprintf("127.0.0.1:%s", c.Ingress))
+		if d.Ingress == "" {
+			l.Printf("No ingress port defined in %s. Ignoring this destination.", f)
+		} else {
+			d.Ingress = fmt.Sprintf("127.0.0.1:%s", d.Ingress)
+			dests = append(dests, d)
+		}
 	}
 
-	return addrs
+	return dests
 }
 
-func ingressClients(downstreamAddrs []string,
-	grpc GRPC,
-	l *log.Logger) []Writer {
-
-	var ingressClients []Writer
-	for _, addr := range downstreamAddrs {
-		clientCreds, err := loggregator.NewIngressTLSConfig(
-			grpc.CAFile,
-			grpc.CertFile,
-			grpc.KeyFile,
-		)
-		if err != nil {
-			l.Fatalf("failed to configure client TLS: %s", err)
+func downstreamWriters(dests []destination, grpc GRPC, m Metrics, l *log.Logger) []Writer {
+	var writers []Writer
+	for _, d := range dests {
+		var w Writer
+		switch d.Protocol {
+		case "otelcol":
+			w = otelCollectorClient(d, grpc, m, l)
+		default:
+			w = loggregatorClient(d, grpc, m, l)
 		}
+		writers = append(writers, w)
+	}
+	return writers
+}
 
-		il := log.New(os.Stderr, fmt.Sprintf("[INGRESS CLIENT] -> %s: ", addr), log.LstdFlags)
-		ingressClient, err := loggregator.NewIngressClient(
-			clientCreds,
-			loggregator.WithLogger(il),
-			loggregator.WithAddr(addr),
-		)
-		if err != nil {
-			l.Fatalf("failed to create ingress client for %s: %s", addr, err)
-		}
-
-		ctx := context.Background()
-		wc := clientWriter{ingressClient}
-		dw := egress.NewDiodeWriter(ctx, wc, gendiodes.AlertFunc(func(missed int) {
-			il.Printf("Dropped %d logs for url %s", missed, addr)
-		}), timeoutwaitgroup.New(time.Minute))
-
-		ingressClients = append(ingressClients, dw)
+func otelCollectorClient(dest destination, grpc GRPC, m Metrics, l *log.Logger) Writer {
+	clientCreds, err := tlsconfig.Build(
+		tlsconfig.WithInternalServiceDefaults(),
+		tlsconfig.WithIdentityFromFile(grpc.CertFile, grpc.KeyFile),
+	).Client(
+		tlsconfig.WithAuthorityFromFile(grpc.CAFile),
+		tlsconfig.WithServerName("otel-collector"),
+	)
+	if err != nil {
+		l.Fatalf("failed to configure client TLS: %s", err)
 	}
 
-	return ingressClients
+	occl := log.New(l.Writer(), fmt.Sprintf("[OTEL COLLECTOR CLIENT] -> %s: ", dest.Ingress), l.Flags())
+
+	w, err := otelcolclient.NewGRPCWriter(dest.Ingress, clientCreds, occl)
+	if err != nil {
+		l.Fatalf("Failed to create OTel Collector gRPC writer for %s: %s", dest.Ingress, err)
+	}
+
+	expired := m.NewCounter(
+		"egress_expired_total",
+		"Total number of envelopes that expired before they could be egressed.",
+		metrics.WithMetricLabels(map[string]string{
+			"protocol":    dest.Protocol,
+			"destination": dest.Ingress,
+		}),
+	)
+
+	dw := egress.NewDiodeWriter(context.Background(), otelcolclient.New(w), gendiodes.AlertFunc(func(missed int) {
+		expired.Add(float64(missed))
+	}), timeoutwaitgroup.New(time.Minute))
+
+	return dw
+}
+
+func loggregatorClient(dest destination, grpc GRPC, m Metrics, l *log.Logger) Writer {
+	clientCreds, err := loggregator.NewIngressTLSConfig(
+		grpc.CAFile,
+		grpc.CertFile,
+		grpc.KeyFile,
+	)
+	if err != nil {
+		l.Fatalf("failed to configure client TLS: %s", err)
+	}
+
+	il := log.New(l.Writer(), fmt.Sprintf("[INGRESS CLIENT] -> %s: ", dest.Ingress), l.Flags())
+	ingressClient, err := loggregator.NewIngressClient(
+		clientCreds,
+		loggregator.WithLogger(il),
+		loggregator.WithAddr(dest.Ingress),
+	)
+	if err != nil {
+		l.Fatalf("failed to create ingress client for %s: %s", dest.Ingress, err)
+	}
+
+	expired := m.NewCounter(
+		"egress_expired_total",
+		"Total number of envelopes that expired before they could be egressed.",
+		metrics.WithMetricLabels(map[string]string{
+			"protocol":    "loggregator",
+			"destination": dest.Ingress,
+		}),
+	)
+
+	ctx := context.Background()
+	wc := clientWriter{ingressClient}
+	dw := egress.NewDiodeWriter(ctx, wc, gendiodes.AlertFunc(func(missed int) {
+		expired.Add(float64(missed))
+		il.Printf("Dropped %d logs for url %s", missed, dest.Ingress)
+	}), timeoutwaitgroup.New(time.Minute))
+	return dw
 }

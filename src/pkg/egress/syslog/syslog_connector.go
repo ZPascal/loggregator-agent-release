@@ -14,12 +14,23 @@ import (
 )
 
 type Binding struct {
-	AppId        string      `json:"appId,omitempty"`
-	Hostname     string      `json:"hostname,omitempty"`
-	Drain        string      `json:"drain,omitempty"`
-	Type         BindingType `json:"type,omitempty"`
+	AppId        string    `json:"appId,omitempty"`
+	Hostname     string    `json:"hostname,omitempty"`
+	Drain        Drain     `json:"drain,omitempty"`
+	DrainData    DrainData `json:"type,omitempty"`
 	OmitMetadata bool
 	InternalTls  bool
+}
+
+type Drain struct {
+	Url         string      `json:"url"`
+	Credentials Credentials `json:"credentials"`
+}
+
+type Credentials struct {
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
+	CA   string `json:"ca"`
 }
 
 // LogClient is used to emit logs.
@@ -96,10 +107,6 @@ func WithLogClient(logClient LogClient, sourceIndex string) ConnectorOption {
 func (w *SyslogConnector) Connect(ctx context.Context, b Binding) (egress.Writer, error) {
 	urlBinding, err := buildBinding(ctx, b)
 	if err != nil {
-		// Note: the scheduler ensures the URL is valid. It is unlikely that
-		// a binding with an invalid URL would make it this far. Nonetheless,
-		// we handle the error case all the same.
-		w.emitLoggregatorErrorLog(b.AppId, "Invalid syslog drain URL: parse failure")
 		return nil, err
 	}
 
@@ -131,7 +138,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b Binding) (egress.Writer
 		w.droppedMetric.Add(float64(missed))
 		drainDroppedMetric.Add(float64(missed))
 
-		w.emitLoggregatorErrorLog(b.AppId, fmt.Sprintf("%d messages lost in user provided syslog drain", missed))
+		w.emitLoggregatorErrorLog(b.AppId, fmt.Sprintf("%d messages lost for application %s in user provided syslog drain with url %s", missed, b.AppId, anonymousUrl.String()))
 		w.emitStandardOutErrorLog(b.AppId, urlBinding.Scheme(), anonymousUrl.String(), missed)
 	}), w.wg)
 

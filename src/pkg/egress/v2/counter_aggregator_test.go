@@ -5,7 +5,7 @@ import (
 
 	"code.cloudfoundry.org/go-loggregator/v9/rpc/loggregator_v2"
 	egress "code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/v2"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -90,11 +90,11 @@ var _ = Describe("CounterAggregator", func() {
 		Expect(env1.GetCounter().GetTotal()).To(Equal(uint64(500)))
 
 		for i := 0; i < 10000; i++ {
-			aggregator.Process(buildCounterEnvelope(10, fmt.Sprint("name-", i), "origin-1"))
+			_ = aggregator.Process(buildCounterEnvelope(10, fmt.Sprint("name-", i), "origin-1"))
 		}
 
 		env2 := buildCounterEnvelope(10, "unique-name", "origin-1")
-		aggregator.Process(env2)
+		_ = aggregator.Process(env2)
 
 		Expect(env2.GetCounter().GetTotal()).To(Equal(uint64(10)))
 	})

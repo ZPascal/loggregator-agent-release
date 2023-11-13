@@ -15,7 +15,7 @@ import (
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -26,12 +26,32 @@ var _ = Describe("Manager", func() {
 		spyMetricClient             *metricsHelpers.SpyMetricsRegistry
 		spyConnector                *spyConnector
 
-		binding1 = syslog.Binding{AppId: "app-1", Hostname: "host-1", Drain: "syslog://drain.url.com"}
-		binding2 = syslog.Binding{AppId: "app-2", Hostname: "host-2", Drain: "syslog://drain.url.com"}
-		binding3 = syslog.Binding{AppId: "app-3", Hostname: "host-3", Drain: "syslog://drain.url.com"}
+		binding1 = syslog.Binding{AppId: "app-1", Hostname: "host-1",
+			Drain: syslog.Drain{
+				Url: "syslog://drain.url.com",
+			},
+		}
+		binding2 = syslog.Binding{AppId: "app-2", Hostname: "host-2",
+			Drain: syslog.Drain{
+				Url: "syslog://drain.url.com",
+			},
+		}
+		binding3 = syslog.Binding{AppId: "app-3", Hostname: "host-3",
+			Drain: syslog.Drain{
+				Url: "syslog://drain.url.com",
+			},
+		}
 
-		aggregateBinding1 = syslog.Binding{AppId: "", Hostname: "host-1", Drain: "syslog://aggregate1.url.com"}
-		aggregateBinding2 = syslog.Binding{AppId: "", Hostname: "host-1", Drain: "syslog://aggregate2.url.com"}
+		aggregateBinding1 = syslog.Binding{AppId: "", Hostname: "host-1",
+			Drain: syslog.Drain{
+				Url: "syslog://aggregate1.url.com",
+			},
+		}
+		aggregateBinding2 = syslog.Binding{AppId: "", Hostname: "host-1",
+			Drain: syslog.Drain{
+				Url: "syslog://aggregate2.url.com",
+			},
+		}
 	)
 
 	BeforeEach(func() {
@@ -72,7 +92,8 @@ var _ = Describe("Manager", func() {
 				},
 			}
 
-			appDrains[0].Write(e)
+			err := appDrains[0].Write(e)
+			Expect(err).To(BeNil())
 			Eventually(appDrains[0].(*spyDrain).envelopes).Should(Receive(Equal(e)))
 		})
 
@@ -107,10 +128,12 @@ var _ = Describe("Manager", func() {
 				},
 			}
 
-			appDrains[0].Write(e)
+			err := appDrains[0].Write(e)
+			Expect(err).To(BeNil())
 			Eventually(appDrains[0].(*spyDrain).envelopes).Should(Receive(Equal(e)))
 
-			appDrains[1].Write(e)
+			err = appDrains[1].Write(e)
+			Expect(err).To(BeNil())
 			Eventually(appDrains[1].(*spyDrain).envelopes).Should(Receive(Equal(e)))
 		})
 
@@ -382,7 +405,11 @@ var _ = Describe("Manager", func() {
 	It("removes drain holders for inactive drains", func() {
 		stubAppBindingFetcher.bindings <- []syslog.Binding{
 			binding1,
-			{AppId: "app-2", Hostname: "host-1", Drain: "syslog://drain.url.com"},
+			{AppId: "app-2", Hostname: "host-1",
+				Drain: syslog.Drain{
+					Url: "syslog://drain.url.com",
+				},
+			},
 		}
 
 		m := binding.NewManager(
@@ -435,8 +462,16 @@ var _ = Describe("Manager", func() {
 
 	It("bad drains don't report on active drains", func() {
 		stubAppBindingFetcher.bindings <- []syslog.Binding{
-			{AppId: "app-1", Hostname: "host-1", Drain: "bad://drain1.url.com"},
-			{AppId: "app-1", Hostname: "host-2", Drain: "bad://drain2.url.com"},
+			{AppId: "app-1", Hostname: "host-1",
+				Drain: syslog.Drain{
+					Url: "bad://drain1.url.com",
+				},
+			},
+			{AppId: "app-1", Hostname: "host-2",
+				Drain: syslog.Drain{
+					Url: "bad://drain2.url.com",
+				},
+			},
 		}
 
 		m := binding.NewManager(
@@ -489,7 +524,11 @@ var _ = Describe("Manager", func() {
 
 	It("should not return a drain for binding to an invalid address", func() {
 		stubAppBindingFetcher.bindings <- []syslog.Binding{
-			{AppId: "app-1", Hostname: "host-1", Drain: "syslog-v3-v3://drain.url.com"},
+			{AppId: "app-1", Hostname: "host-1",
+				Drain: syslog.Drain{
+					Url: "syslog-invalid-scheme://drain.url.com",
+				},
+			},
 		}
 
 		m := binding.NewManager(
@@ -555,7 +594,7 @@ func (c *spyConnector) Connect(ctx context.Context, b syslog.Binding) (egress.Wr
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if strings.HasPrefix(b.Drain, "syslog://") {
+	if strings.HasPrefix(b.Drain.Url, "syslog://") {
 		c.bindingContextMap[b] = ctx
 		atomic.AddInt64(&c.connectionCount, 1)
 		c.bindingConnectedList = append(c.bindingConnectedList, b)

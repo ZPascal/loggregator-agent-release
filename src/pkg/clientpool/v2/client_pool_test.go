@@ -6,7 +6,7 @@ import (
 	"code.cloudfoundry.org/go-loggregator/v9/rpc/loggregator_v2"
 	clientpool "code.cloudfoundry.org/loggregator-agent-release/src/pkg/clientpool/v2"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -51,7 +51,8 @@ var _ = Describe("ClientPool", func() {
 			})
 
 			It("tries all conns before erroring", func() {
-				pool.Write([]*loggregator_v2.Envelope{{SourceId: "some-uuid"}})
+				err := pool.Write([]*loggregator_v2.Envelope{{SourceId: "some-uuid"}})
+				Expect(err).To(HaveOccurred())
 
 				for len(conns) > 0 {
 					i, _ := chooseData(conns)

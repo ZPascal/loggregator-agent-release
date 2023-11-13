@@ -11,16 +11,17 @@ import (
 
 // Config holds the configuration for the syslog binding cache
 type Config struct {
-	UseRFC3339         bool          `env:"USE_RFC3339"`
-	APIURL             string        `env:"API_URL,              required, report"`
-	APICAFile          string        `env:"API_CA_FILE_PATH,     required, report"`
-	APICertFile        string        `env:"API_CERT_FILE_PATH,   required, report"`
-	APIKeyFile         string        `env:"API_KEY_FILE_PATH,    required, report"`
-	APICommonName      string        `env:"API_COMMON_NAME,      required, report"`
-	APIPollingInterval time.Duration `env:"API_POLLING_INTERVAL, report"`
-	APIBatchSize       int           `env:"API_BATCH_SIZE, report"`
-	CipherSuites       []string      `env:"CIPHER_SUITES, report"`
-	AggregateDrains    []string      `env:"AGGREGATE_DRAINS, report"`
+	UseRFC3339           bool          `env:"USE_RFC3339"`
+	APIURL               string        `env:"API_URL,              required, report"`
+	APICAFile            string        `env:"API_CA_FILE_PATH,     required, report"`
+	APICertFile          string        `env:"API_CERT_FILE_PATH,   required, report"`
+	APIKeyFile           string        `env:"API_KEY_FILE_PATH,    required, report"`
+	APICommonName        string        `env:"API_COMMON_NAME,      required, report"`
+	APIPollingInterval   time.Duration `env:"API_POLLING_INTERVAL, report"`
+	APIBatchSize         int           `env:"API_BATCH_SIZE, report"`
+	APIDisableKeepAlives bool          `env:"API_DISABLE_KEEP_ALIVES, report"`
+	CipherSuites         []string      `env:"CIPHER_SUITES, report"`
+	AggregateDrainsFile  string        `env:"AGGREGATE_DRAINS_FILE, report"`
 
 	CacheCAFile     string `env:"CACHE_CA_FILE_PATH,     required, report"`
 	CacheCertFile   string `env:"CACHE_CERT_FILE_PATH,   required, report"`
@@ -43,7 +44,7 @@ func LoadConfig() Config {
 		log.Panicf("Failed to load config from environment: %s", err)
 	}
 
-	envstruct.WriteReport(&cfg)
+	envstruct.WriteReport(&cfg) //nolint:errcheck
 
 	return cfg
 }

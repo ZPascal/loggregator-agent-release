@@ -3,9 +3,7 @@ package main
 import (
 	"io"
 	"log"
-	"math/rand"
-	_ "net/http/pprof"
-	"time"
+	_ "net/http/pprof" //nolint:gosec
 
 	"code.cloudfoundry.org/loggregator-agent-release/src/cmd/loggregator-agent/app"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/plumbing"
@@ -13,8 +11,7 @@ import (
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-	grpclog.SetLogger(log.New(io.Discard, "", 0))
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
 
 	config, err := app.LoadConfig()
 	if config.UseRFC3339 {

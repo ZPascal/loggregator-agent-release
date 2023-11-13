@@ -4,5 +4,5 @@
 package main
 
 import (
-	_ "github.com/onsi/ginkgo/ginkgo"
+	_ "git.sr.ht/~nelsam/hel/v3"
 )

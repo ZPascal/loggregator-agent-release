@@ -1,4 +1,5 @@
-### Loggregator Agent
+### Syslog Agent
+
 An agent that forwards app logs to a syslog drain. Drains are registered by binding User Provided Services to apps. 
 Any logs coming from a registered app are forwarded to the configured endpoint. 
 
@@ -15,6 +16,7 @@ jobs:
 - name: loggr-syslog-agent
   release: loggregator-agent
   properties:
+    drain_ca_cert: "((log_cache_syslog_tls.ca))"
     port: 3460
     tls:
       ca_cert: "((loggregator_tls_agent.ca))"
@@ -67,6 +69,16 @@ variables:
     extended_key_usage:
     - client_auth
     - server_auth
+    
+- name: log_cache_syslog_tls
+  type: certificate
+  options:
+    ca: /bosh-<ENV_NAME>/cf/loggregator_ca
+    common_name: log-cache.service.cf.internal
+    alternative_names:
+      - "log-cache.service.cf.internal"
+    extended_key_usage:
+      - server_auth
 
 - name: syslog_agent_metrics_tls
   type: certificate
@@ -90,6 +102,13 @@ variables:
     is_ca: true
     common_name: metricScraperCA
 ```
+
+#### Logs and metrics
+
+Syslog emits metrics relating to per-app egress, total egress, and total dropped
+messages. Metrics and logs for app drains will list an anonymized URL of the
+syslog drain, where the user, password, and queries are wiped out for security
+reasons.
 
 ##### go-loggregator
 

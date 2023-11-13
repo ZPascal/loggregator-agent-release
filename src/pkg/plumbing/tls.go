@@ -84,7 +84,7 @@ func NewServerCredentials(
 	return credentials.NewTLS(tlsConfig), nil
 }
 
-func NewTLSHTTPClient(cert, key, ca, commonName string) *http.Client {
+func NewTLSHTTPClient(cert, key, ca, commonName string, disableKeepAlives bool) *http.Client {
 	tlsConfig, err := tlsconfig.Build(
 		tlsconfig.WithInternalServiceDefaults(),
 		tlsconfig.WithIdentityFromFile(cert, key),
@@ -109,6 +109,7 @@ func NewTLSHTTPClient(cert, key, ca, commonName string) *http.Client {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig:       tlsConfig,
+		DisableKeepAlives:     disableKeepAlives,
 	}
 
 	return &http.Client{

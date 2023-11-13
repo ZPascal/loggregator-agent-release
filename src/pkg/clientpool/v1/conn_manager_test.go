@@ -7,8 +7,7 @@ import (
 	clientpool "code.cloudfoundry.org/loggregator-agent-release/src/pkg/clientpool/v1"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/plumbing"
 
-	"github.com/apoydence/eachers/testhelpers"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -64,7 +63,7 @@ var _ = Describe("ConnManager", func() {
 				It("recycles the connections after max writes and reconnects", func() {
 					msg := []byte("some-data")
 					f := func() int {
-						connManager.Write(msg)
+						_ = connManager.Write(msg)
 						return len(mockConnector.ConnectCalled)
 					}
 					Eventually(f).Should(Equal(2))
@@ -95,10 +94,22 @@ var _ = Describe("ConnManager", func() {
 	})
 
 	Context("when a connection is not able to be established", func() {
+		var stopCh chan struct{}
+
 		BeforeEach(func() {
 			close(mockConnector.ConnectOutput.Ret0)
 			close(mockConnector.ConnectOutput.Ret1)
-			testhelpers.AlwaysReturn(mockConnector.ConnectOutput.Ret2, errors.New("some-error"))
+			stopCh = make(chan struct{})
+			go func() {
+				for {
+					select {
+					case mockConnector.ConnectOutput.Ret2 <- errors.New("some-error"):
+					case <-stopCh:
+						stopCh <- struct{}{}
+						return
+					}
+				}
+			}()
 		})
 
 		It("always returns an error", func() {
@@ -106,6 +117,10 @@ var _ = Describe("ConnManager", func() {
 				return connManager.Write([]byte("some-data"))
 			}
 			Consistently(f).Should(HaveOccurred())
+
+			// stop goroutine and wait for it to stop
+			stopCh <- struct{}{}
+			<-stopCh
 		})
 	})
 })

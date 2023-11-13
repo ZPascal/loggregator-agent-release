@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"code.cloudfoundry.org/go-loggregator/v9"
@@ -410,7 +410,7 @@ var _ = Describe("Scraper", func() {
 			addResponse(tc, 200, smallGaugeOutput)
 		}
 
-		go tc.scraper.Scrape()
+		go tc.scraper.Scrape() //nolint:errcheck
 
 		Eventually(func() int { return len(tc.metricGetter.addrs) }, 1).Should(Equal(3))
 	})

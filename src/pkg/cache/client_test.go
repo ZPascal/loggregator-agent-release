@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/binding"
@@ -31,9 +31,12 @@ var _ = Describe("Client", func() {
 	It("returns bindings from the cache", func() {
 		bindings := []binding.Binding{
 			{
-				AppID:    "app-id-1",
-				Drains:   []string{"drain-1"},
-				Hostname: "host-1",
+				Url: "drain-1",
+				Credentials: []binding.Credentials{
+					{
+						Cert: "cert", Key: "key", Apps: []binding.App{{Hostname: "host-1", AppID: "app-id-1"}},
+					},
+				},
 			},
 		}
 
@@ -45,11 +48,57 @@ var _ = Describe("Client", func() {
 		}
 
 		Expect(client.Get()).To(Equal(bindings))
+		Expect(spyHTTPClient.requestURL).To(Equal("https://cache.address.com/v2/bindings"))
+	})
+
+	It("returns legacy bindings from the cache", func() {
+		bindings := []binding.LegacyBinding{
+			{
+				AppID:       "app-id-1",
+				Drains:      []string{"drain-1"},
+				Hostname:    "host-1",
+				V2Available: true,
+			},
+		}
+
+		j, err := json.Marshal(bindings)
+		Expect(err).ToNot(HaveOccurred())
+		spyHTTPClient.response = &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(j)),
+		}
+
+		Expect(client.LegacyGet()).To(Equal(bindings))
 		Expect(spyHTTPClient.requestURL).To(Equal("https://cache.address.com/bindings"))
 	})
 
 	It("returns aggregate drains from the cache", func() {
 		bindings := []binding.Binding{
+			{
+				Url: "url",
+				Credentials: []binding.Credentials{
+					{
+						Cert: "cert",
+						Key:  "key",
+						CA:   "ca",
+					},
+				},
+			},
+		}
+
+		j, err := json.Marshal(bindings)
+		Expect(err).ToNot(HaveOccurred())
+		spyHTTPClient.response = &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(j)),
+		}
+
+		Expect(client.GetAggregate()).To(Equal(bindings))
+		Expect(spyHTTPClient.requestURL).To(Equal("https://cache.address.com/v2/aggregate"))
+	})
+
+	It("returns legacy aggregate drains from the cache", func() {
+		bindings := []binding.LegacyBinding{
 			{
 				AppID:    "app-id-1",
 				Drains:   []string{"drain-1"},
@@ -64,7 +113,7 @@ var _ = Describe("Client", func() {
 			Body:       io.NopCloser(bytes.NewReader(j)),
 		}
 
-		Expect(client.GetAggregate()).To(Equal(bindings))
+		Expect(client.GetLegacyAggregate()).To(Equal(bindings))
 		Expect(spyHTTPClient.requestURL).To(Equal("https://cache.address.com/aggregate"))
 	})
 
@@ -76,6 +125,18 @@ var _ = Describe("Client", func() {
 		Expect(err).To(MatchError("http error"))
 
 		_, err = client.GetAggregate()
+
+		Expect(err).To(MatchError("http error"))
+	})
+
+	It("returns empty legacy bindings if an HTTP error occurs", func() {
+		spyHTTPClient.err = errors.New("http error")
+
+		_, err := client.Get()
+
+		Expect(err).To(MatchError("http error"))
+
+		_, err = client.GetLegacyAggregate()
 
 		Expect(err).To(MatchError("http error"))
 	})
@@ -94,6 +155,21 @@ var _ = Describe("Client", func() {
 
 		Expect(err).To(MatchError("unexpected http response from binding cache: 500"))
 	})
+
+	It("returns empty legacy bindings if cache returns a non-OK status code", func() {
+		spyHTTPClient.response = &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       io.NopCloser(strings.NewReader("")),
+		}
+
+		_, err := client.Get()
+
+		Expect(err).To(MatchError("unexpected http response from binding cache: 500"))
+
+		_, err = client.GetLegacyAggregate()
+
+		Expect(err).To(MatchError("unexpected http response from binding cache: 500"))
+	})
 })
 
 type spyHTTPClient struct {
@@ -107,6 +183,16 @@ func newSpyHTTPClient() *spyHTTPClient {
 }
 
 func (s *spyHTTPClient) Get(url string) (*http.Response, error) {
+	s.requestURL = url
+	return s.response, s.err
+}
+
+func (s *spyHTTPClient) LegacyGet(url string) (*http.Response, error) {
+	s.requestURL = url
+	return s.response, s.err
+}
+
+func (s *spyHTTPClient) GetAggregate(url string) (*http.Response, error) {
 	s.requestURL = url
 	return s.response, s.err
 }

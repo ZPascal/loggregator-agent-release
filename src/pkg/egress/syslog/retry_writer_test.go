@@ -13,7 +13,7 @@ import (
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
 	"golang.org/x/net/context"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -133,7 +133,6 @@ var _ = Describe("Retry Writer", func() {
 })
 
 type spyWriteCloser struct {
-	binding       *syslog.URLBinding
 	writeCalled   bool
 	writeEnvelope *v2.Envelope
 	writeAttempts int64

@@ -6,7 +6,7 @@ import (
 
 	clientpool "code.cloudfoundry.org/loggregator-agent-release/src/pkg/clientpool/v1"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -41,7 +41,8 @@ var _ = Describe("ClientPool", func() {
 			})
 
 			It("tries all conns before erroring", func() {
-				pool.Write([]byte("some-data"))
+				err := pool.Write([]byte("some-data"))
+				Expect(err).ToNot(Succeed())
 
 				for len(mockConns) > 0 {
 					i, _ := chooseData(mockConns)
@@ -65,7 +66,8 @@ var _ = Describe("ClientPool", func() {
 
 			It("uses the given data once", func() {
 				data := []byte("some-data")
-				pool.Write(data)
+				err := pool.Write(data)
+				Expect(err).To(Succeed())
 
 				idx, msg := chooseData(mockConns)
 				Expect(idx).ToNot(Equal(-1))

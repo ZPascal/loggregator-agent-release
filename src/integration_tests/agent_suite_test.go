@@ -3,19 +3,18 @@ package agent_test
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"testing"
 
 	"google.golang.org/grpc/grpclog"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 )
 
 func TestAgent(t *testing.T) {
-	grpclog.SetLogger(log.New(GinkgoWriter, "", log.LstdFlags))
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(GinkgoWriter, GinkgoWriter, GinkgoWriter))
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Agent Integration Test Suite")
 }

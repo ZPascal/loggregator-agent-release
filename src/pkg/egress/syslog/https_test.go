@@ -11,7 +11,7 @@ import (
 	"code.cloudfoundry.org/go-loggregator/v9/rpc/loggregator_v2"
 	metricsHelpers "code.cloudfoundry.org/go-metric-registry/testhelpers"
 	"code.cloudfoundry.org/loggregator-agent-release/src/pkg/egress/syslog"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -19,7 +19,7 @@ var _ = Describe("HTTPWriter", func() {
 	var (
 		netConf          syslog.NetworkTimeoutConfig
 		skipSSLTLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec
 		}
 		c = syslog.NewConverter()
 	)
@@ -32,7 +32,7 @@ var _ = Describe("HTTPWriter", func() {
 		writer := syslog.NewHTTPSWriter(
 			b,
 			netConf,
-			&tls.Config{},
+			&tls.Config{MinVersion: tls.VersionTLS12},
 			&metricsHelpers.SpyMetric{},
 			c,
 		)
@@ -288,7 +288,8 @@ var _ = Describe("HTTPWriter", func() {
 		)
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
-		writer.Write(env)
+		err := writer.Write(env)
+		Expect(err).To(BeNil())
 
 		Expect(sm.Value()).To(BeNumerically("==", 1))
 	})
