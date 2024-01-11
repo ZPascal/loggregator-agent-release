@@ -65,6 +65,8 @@ builds:
     version: "3.11"
   482786b1-3e5e-42b9-4f75-1be906dced3b:
     version: 7.2.3
+  49d8da5f-c409-41ab-4414-cbbf20623367:
+    version: 7.7.2
   4acab3d5-9425-4ad0-4103-651e8a1358b5:
     version: "3.7"
   51088622-f92b-4e79-5e61-131e1c5b24a3:
@@ -163,6 +165,8 @@ builds:
     version: 6.3.10
   bf7a43f8-9760-4c30-6675-c555e91006bf:
     version: "3.2"
+  bfc9c111-2b2a-4ae1-674b-db42cff74163:
+    version: 7.7.3
   c16876ff-7e18-4bac-6d2c-2bed5f936e6e:
     version: 7.0.2
   c3a01e9c-f4db-486d-7088-f5de150b559b:

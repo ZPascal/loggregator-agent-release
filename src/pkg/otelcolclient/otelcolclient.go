@@ -113,6 +113,7 @@ func (c *Client) addCounterToBatch(e *loggregator_v2.Envelope) {
 		Data: &metricspb.Metric_Sum{
 			Sum: &metricspb.Sum{
 				AggregationTemporality: metricspb.AggregationTemporality_AGGREGATION_TEMPORALITY_CUMULATIVE,
+				IsMonotonic:            e.GetCounter().GetDelta() == 0,
 				DataPoints: []*metricspb.NumberDataPoint{
 					{
 						TimeUnixNano: uint64(e.GetTimestamp()),
@@ -173,7 +174,7 @@ func attributes(e *loggregator_v2.Envelope) []*commonpb.KeyValue {
 	}
 
 	for k, v := range e.Tags {
-		if k == "instance_id" || k == "source_id" {
+		if k == "instance_id" || k == "source_id" || k == "__v1_type" {
 			continue
 		}
 
